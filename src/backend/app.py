@@ -1,4 +1,4 @@
-from __future__ import with_statement
+
 import os
 import sys
 import sqlite3
@@ -11,7 +11,10 @@ from flask import Flask, request, session, url_for, redirect, render_template, g
 # Configuration
 ################################################################################
 
-DATABASE_PATH = '/tmp/whoknows.db'
+BASE_DIR = os.path.dirname(os.path.abspath(__file__))
+
+DATABASE_PATH = os.environ.get("WHOKNOWS_DB_PATH", os.path.join(BASE_DIR, "whoknows.db"))
+
 PER_PAGE = 30
 DEBUG = False
 SECRET_KEY = 'development key'
@@ -36,7 +39,7 @@ def check_db_exists():
     """Checks if the database exists."""
     db_exists = os.path.exists(DATABASE_PATH)
     if not db_exists:
-        print "Database not found"
+        print("Database not found:", DATABASE_PATH)
         sys.exit(1)
     else:
         return db_exists
@@ -48,7 +51,7 @@ def init_db():
         with app.open_resource('../schema.sql') as f:
             db.cursor().executescript(f.read().decode('utf-8'))
         db.commit()
-        print "Initialized the database: " + str(DATABASE_PATH)
+        print("Initialized the database: " + str(DATABASE_PATH))
 
 
 def query_db(query, args=(), one=False):
