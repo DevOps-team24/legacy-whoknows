@@ -1,13 +1,14 @@
-#!/usr/bin/env bash
-set -euo pipefail
+#!/bin/bash
 
-# Path to the Python script (første argument)
-PYTHON_SCRIPT_PATH="$1"
+PYTHON_SCRIPT_PATH=$1
 
-while true; do
-    if ! python3 "$PYTHON_SCRIPT_PATH"; then
-        exit_code=$?
-        echo "Script crashed with exit code ${exit_code}. Restarting..." >&2
+
+while true
+do
+    python "$PYTHON_SCRIPT_PATH"
+    exit_code=$?
+    if [ $exit_code -ne 0 ]; then
+        echo "Script crashed with exit code $exit_code. Restarting..." >&2
         sleep 1
     fi
 done
