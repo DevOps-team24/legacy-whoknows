@@ -12,12 +12,23 @@ from flask import Flask, request, session, url_for, redirect, render_template, g
 ################################################################################
 
 BASE_DIR = os.path.dirname(os.path.abspath(__file__))
+REPO_ROOT = os.path.abspath(os.path.join(BASE_DIR, "..", ".."))
 
-DATABASE_PATH = os.environ.get("WHOKNOWS_DB_PATH", os.path.join(BASE_DIR, "whoknows.db"))
+default_db = os.path.join(REPO_ROOT, "whoknows.db")
+fallback_db = os.path.join(BASE_DIR, "whoknows.db")
+
+DATABASE_PATH = os.environ.get(
+    "WHOKNOWS_DB_PATH",
+    default_db if os.path.exists(default_db) else fallback_db
+)
 
 PER_PAGE = 30
 DEBUG = False
 SECRET_KEY = 'development key'
+
+app = Flask(__name__)
+
+app.secret_key = SECRET_KEY
 
 app = Flask(__name__)
 
