@@ -9,7 +9,7 @@ import (
 )
 
 func main() {
-	conn, err := db.Open("whoknows.db")
+	conn, err := db.Open("../whoknows.db")
 	if err != nil {
 		log.Fatal(err)
 	}

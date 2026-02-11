@@ -7,6 +7,8 @@ import (
 	"os"
 	"path/filepath"
 	"sync"
+
+	"whoknows_variations/server_go/internal/db"
 )
 
 type AuthResponse struct {
@@ -169,10 +171,21 @@ func (s *Server) Search(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 
-	// Stub: return empty list for now
+	langParam := r.URL.Query().Get("language")
+	var lang *string
+	if langParam != "" {
+		lang = &langParam
+	}
+
+	results, err := db.SearchPages(s.DB, q, lang)
+	if err != nil {
+		http.Error(w, "internal error", http.StatusInternalServerError)
+		return
+	}
+
 	w.Header().Set("Content-Type", "application/json")
 	w.WriteHeader(http.StatusOK)
-	_ = json.NewEncoder(w).Encode(SearchResponse{Data: []map[string]any{}})
+	_ = json.NewEncoder(w).Encode(SearchResponse{Data: results})
 }
 
 func (s *Server) Register(w http.ResponseWriter, r *http.Request) {
