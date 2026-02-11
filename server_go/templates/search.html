@@ -1,0 +1,20 @@
+{{ define "body" }}
+<h2>Search</h2>
+<form id="search-form" action="/api/search" method="get">
+  <input id="q" name="q" type="text" placeholder="enter search term">
+  <button type="submit">Search</button>
+</form>
+<div id="results"></div>
+
+<script src="/static/search.js"></script>
+<script>
+  // inline behavior preserved if present in legacy template
+  (function(){
+    const form = document.getElementById('search-form');
+    // optional: progressive enhancement hooking
+    form.addEventListener('submit', function(e){ /* ... */ });
+  })();
+</script>
+{{ end }}
+
+{{ template "layout" . }}
