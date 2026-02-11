@@ -9,7 +9,7 @@ import (
 )
 
 func main() {
-	conn, err := db.Open("whoknows.db")
+	conn, err := db.Open("../whoknows.db")
 	if err != nil {
 		log.Fatal(err)
 	}
@@ -24,5 +24,3 @@ func main() {
 	log.Println("listening on :8080")
 	log.Fatal(http.ListenAndServe(":8080", router))
 }
-
-
