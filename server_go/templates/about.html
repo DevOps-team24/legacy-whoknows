@@ -1,0 +1,14 @@
+{{ define "body" }}
+<h2>About</h2>
+<div class="about">
+  <p>Who Knows? example app — migrated to Go templates.</p>
+  <figure>
+    <img src="/static/monkgroup.png" alt="Monk Group" class="about-image" />
+    <figcaption>Monk group photo</figcaption>
+  </figure>
+</div>
+{{ end }}
+
+{{ define "about.html" }}
+  {{ template "layout" . }}
+{{ end }}

@@ -1,0 +1,14 @@
+{{ define "body" }}
+  <h2>Register</h2>
+  <form action="/api/register" method="post">
+    <label for="username">Username</label>
+    <input id="username" name="username" type="text" required>
+
+    <label for="password">Password</label>
+    <input id="password" name="password" type="password" required>
+
+    <button type="submit">Register</button>
+  </form>
+{{ end }}
+
+{{ template "layout" . }}
