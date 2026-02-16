@@ -6,6 +6,7 @@ import (
 	"net/http"
 	"os"
 	"path/filepath"
+	"strings"
 	"sync"
 
 	"whoknows_variations/server_go/internal/db"
@@ -33,6 +34,7 @@ type ViewData struct {
 	User    *User
 	Flashes []string
 	Results []map[string]any
+	Query   string
 }
 
 var (
@@ -130,11 +132,29 @@ func renderTemplate(w http.ResponseWriter, name string, data any) {
 }
 
 func (s *Server) ServeRootPage(w http.ResponseWriter, r *http.Request) {
-	// pass an empty ViewData for now; populate User/Flashes/Results as you implement auth/search logic
+	q := strings.TrimSpace(r.URL.Query().Get("q"))
+
+	langParam := strings.TrimSpace(r.URL.Query().Get("language"))
+	var lang *string
+	if langParam != "" {
+		lang = &langParam
+	}
+
+	var results []map[string]any
+	if q != "" {
+		var err error
+		results, err = db.SearchPages(s.DB, q, lang)
+		if err != nil {
+			http.Error(w, "internal error", http.StatusInternalServerError)
+			return
+		}
+	}
+
 	renderTemplate(w, "search.html", ViewData{
 		User:    nil,
 		Flashes: nil,
-		Results: nil,
+		Results: results,
+		Query:   q,
 	})
 }
 
@@ -161,13 +181,12 @@ func (s *Server) ServeLoginPage(w http.ResponseWriter, r *http.Request) {
 }
 
 func (s *Server) Search(w http.ResponseWriter, r *http.Request) {
-	q := r.URL.Query().Get("q")
+	q := strings.TrimSpace(r.URL.Query().Get("q"))
 	if q == "" {
-		msg := "Missing required query parameter: q"
-		resp := RequestValidationError{StatusCode: 422, Message: &msg}
+		// Match legacy behaviour: empty query simply returns empty result set with 200 OK
 		w.Header().Set("Content-Type", "application/json")
-		w.WriteHeader(http.StatusUnprocessableEntity)
-		_ = json.NewEncoder(w).Encode(resp)
+		w.WriteHeader(http.StatusOK)
+		_ = json.NewEncoder(w).Encode(SearchResponse{Data: []map[string]any{}})
 		return
 	}
 

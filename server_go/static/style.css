@@ -79,3 +79,27 @@ button:active {
     background-color: #e0e0e0;
     box-shadow: inset 0 3px 5px rgba(0, 0, 0, 0.125);
 }
+
+/* Search Results */
+#results {
+    margin-top: 20px;
+}
+
+#results > div {
+    margin-bottom: 20px;
+    padding: 10px;
+}
+
+.search-result-title {
+    text-decoration: none;
+    color: #1a0dab;
+    font-size: 18px;
+}
+
+.search-result-title:hover {
+    text-decoration: underline;
+}
+
+.search-result-title:visited {
+    color: #609;
+}

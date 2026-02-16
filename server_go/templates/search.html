@@ -1,20 +1,18 @@
 {{ define "body" }}
-<h2>Search</h2>
-<form id="search-form" action="/api/search" method="get">
-  <input id="q" name="q" type="text" placeholder="enter search term">
-  <button type="submit">Search</button>
-</form>
-<div id="results"></div>
+<div>
+  <input id="search-input" placeholder="Search..." value="{{ .Query }}">
+  <button id="search-button" onclick="makeSearchRequest()">Search</button>
+</div>
+
+<div id="results">
+  {{ range .Results }}
+  <div>
+      <h2><a class="search-result-title" href="{{ .url }}">{{ .title }}</a></h2>
+  </div>
+  {{ end }}
+</div>
 
 <script src="/static/search.js"></script>
-<script>
-  // inline behavior preserved if present in legacy template
-  (function(){
-    const form = document.getElementById('search-form');
-    // optional: progressive enhancement hooking
-    form.addEventListener('submit', function(e){ /* ... */ });
-  })();
-</script>
 {{ end }}
 
 {{ template "layout" . }}
