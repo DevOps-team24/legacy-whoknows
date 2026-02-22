@@ -18,7 +18,7 @@ func SearchPages(conn *sql.DB, q string, language *string) ([]map[string]any, er
 	rows, err := conn.Query(`
 		SELECT title, url, language, last_updated, content
 		FROM pages
-		WHERE language = ? AND content LIKE ?
+		WHERE language = ? AND title LIKE ?
 		LIMIT 30
 	`, lang, like)
 	if err != nil {
