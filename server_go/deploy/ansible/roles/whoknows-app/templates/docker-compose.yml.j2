@@ -1,0 +1,23 @@
+services:
+  whoknows:
+    build:
+      context: .
+      dockerfile: deploy/Dockerfile
+    image: {{ app_name }}:latest
+    container_name: {{ app_name }}
+    restart: unless-stopped
+    ports:
+      - "{{ app_port }}:8080"
+    volumes:
+      - {{ app_dir }}/data:/app/data
+      - {{ app_dir }}/logs:/app/logs
+    environment:
+      - WHOKNOWS_DB_PATH=/app/data/whoknows.db
+      - WHOKNOWS_PORT=8080
+      - WHOKNOWS_ADDR=0.0.0.0
+    healthcheck:
+      test: ["CMD", "wget", "--quiet", "--tries=1", "--spider", "http://localhost:8080/"]
+      interval: 30s
+      timeout: 10s
+      retries: 3
+      start_period: 40s
