@@ -1,0 +1,72 @@
+---
+- name: Opret app-directories
+  file:
+    path: "{{ item }}"
+    state: directory
+    owner: "{{ ansible_user }}"
+    group: "{{ ansible_user }}"
+    mode: "0755"
+  loop:
+    - "{{ app_dir }}"
+    - "{{ app_dir }}/data"
+    - "{{ app_dir }}/logs"
+
+- name: Kopier app-kilde til server
+  synchronize:
+    src: "{{ playbook_dir }}/../../"
+    dest: "{{ app_dir }}/"
+    delete: false
+    rsync_opts:
+      - "--exclude=.git"
+      - "--exclude=*.db"
+      - "--exclude=whoknows.db"
+  become: true
+  become_user: root
+  # Efter sync: sæt ejer så deploy-brugeren kan skrive ved næste deploy
+- name: Sæt ejerskab på app_dir
+  file:
+    path: "{{ app_dir }}"
+    state: directory
+    owner: "{{ ansible_user }}"
+    group: "{{ ansible_user }}"
+    recurse: true
+
+- name: Placer docker-compose.yml
+  template:
+    src: docker-compose.yml.j2
+    dest: "{{ app_dir }}/docker-compose.yml"
+    owner: "{{ ansible_user }}"
+    group: "{{ ansible_user }}"
+    mode: "0644"
+
+- name: Placer .env
+  template:
+    src: env.j2
+    dest: "{{ app_dir }}/.env"
+    owner: "{{ ansible_user }}"
+    group: "{{ ansible_user }}"
+    mode: "0600"
+
+- name: Byg og start containere (kør som deploy-bruger)
+  shell: "cd {{ app_dir }} && sg docker -c 'docker compose build --no-cache && docker compose up -d'"
+  become: false
+  args:
+    executable: /bin/bash
+
+- name: Vent på at appen i containeren svarer
+  wait_for:
+    port: 8080
+    host: 127.0.0.1
+    delay: 5
+    timeout: 90
+
+- name: Kør database-migration hvis database er tom
+  shell: |
+    if [ ! -f {{ app_dir }}/data/whoknows.db ]; then
+      cd {{ app_dir }} && sg docker -c 'docker compose exec -T whoknows sh -c "sqlite3 /app/data/whoknows.db < /app/migrations/001_init.sql"'
+    fi
+  args:
+    executable: /bin/bash
+  become: false
+  changed_when: false
+  ignore_errors: true

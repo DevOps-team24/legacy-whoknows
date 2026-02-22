@@ -1,0 +1,19 @@
+# Fælles deploy-bruger: alle teammedlemmers SSH-nøgler ligger i
+# ~/.ssh/authorized_keys på serveren for denne bruger.
+# Opdater ansible_host til din VMs IP eller hostname.
+---
+all:
+  vars:
+    app_name: whoknows
+    app_port: 8080
+    app_dir: "/opt/{{ app_name }}"
+    domain: huw.dk
+    server_ip: "20.240.47.24"
+    certbot_email: "hannibal@ussing.com"
+    ansible_user: deploy
+
+  children:
+    production:
+      hosts:
+        whoknows-vm:
+          ansible_host: 20.240.47.24

@@ -1,0 +1,26 @@
+---
+# Deploy WhoKnows med Docker Compose.
+# Kør fra server_go: ansible-playbook deploy/ansible/playbook.yml
+- name: Deploy WhoKnows (Docker Compose)
+  hosts: all
+  become: true
+  roles:
+    - role: docker
+      tags: docker
+    - role: whoknows-app
+      tags: app
+    - role: nginx
+      tags: nginx
+
+  post_tasks:
+    - name: Vent på at appen svarer
+      wait_for:
+        port: "{{ app_port }}"
+        host: 127.0.0.1
+        delay: 3
+        timeout: 60
+      delegate_to: "{{ inventory_hostname }}"
+
+    - name: Vis deployment-status
+      debug:
+        msg: "WhoKnows kører på http://{{ ansible_host }}:{{ app_port }}"
