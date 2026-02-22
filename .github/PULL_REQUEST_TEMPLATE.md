@@ -7,7 +7,7 @@
 ### Why Was It Necessary
 <!-- Explain the motivation or problem this PR addresses. Link to relevant context if applicable -->
 
-Closes #<!-- issue number -->
+
 
 
 ## Type of Change
