@@ -4,6 +4,7 @@ import (
 	"log"
 	"net/http"
 	"os"
+	"path/filepath"
 
 	"github.com/gorilla/sessions"
 
@@ -12,9 +13,11 @@ import (
 )
 
 func main() {
+	workingDir, _ := os.Getwd()
 	dbPath := os.Getenv("WHOKNOWS_DB_PATH")
 	if dbPath == "" {
-		dbPath = "./whoknows.db"
+		absPath, _ := filepath.Abs(filepath.Join(workingDir, "..", "whoknows.db"))
+		dbPath = absPath
 	}
 
 	conn, err := db.Open(dbPath)
@@ -40,7 +43,7 @@ func main() {
 	if addr == "" {
 		addr = "0.0.0.0"
 	}
-
+	log.Printf("Connecting to DB at: %s", dbPath)
 	log.Printf("listening on %s:%s", addr, port)
 	log.Fatal(http.ListenAndServe(addr+":"+port, router))
 }
