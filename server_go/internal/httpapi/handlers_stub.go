@@ -1,7 +1,9 @@
 package httpapi
 
 import (
+	"context"
 	"encoding/json"
+	"errors"
 	"html/template"
 	"net/http"
 	"os"
@@ -9,8 +11,13 @@ import (
 	"strings"
 	"sync"
 
+	"whoknows_variations/server_go/internal/auth"
 	"whoknows_variations/server_go/internal/db"
 )
+
+type contextKey string
+
+const userContextKey contextKey = "user"
 
 type AuthResponse struct {
 	StatusCode *int    `json:"statusCode"`
@@ -27,14 +34,71 @@ type RequestValidationError struct {
 }
 
 type User struct {
+	ID       int64
 	Username string
+	Email    string
 }
 
 type ViewData struct {
 	User    *User
 	Flashes []string
+	Error   string
 	Results []map[string]any
 	Query   string
+}
+
+// UserFromSession is chi middleware that loads the logged-in user (if any)
+// from the session cookie and stores it in the request context.
+func (s *Server) UserFromSession(next http.Handler) http.Handler {
+	return http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		sess, _ := s.Sessions.Get(r, SessionName)
+		uid, ok := sess.Values["user_id"]
+		if !ok {
+			next.ServeHTTP(w, r)
+			return
+		}
+
+		userID, ok := uid.(int64)
+		if !ok {
+			next.ServeHTTP(w, r)
+			return
+		}
+
+		row, err := db.GetUserByID(s.DB, userID)
+		if err != nil {
+			next.ServeHTTP(w, r)
+			return
+		}
+
+		u := &User{ID: row.ID, Username: row.Username, Email: row.Email}
+		ctx := context.WithValue(r.Context(), userContextKey, u)
+		next.ServeHTTP(w, r.WithContext(ctx))
+	})
+}
+
+func currentUser(r *http.Request) *User {
+	u, _ := r.Context().Value(userContextKey).(*User)
+	return u
+}
+
+func (s *Server) addFlash(w http.ResponseWriter, r *http.Request, msg string) {
+	sess, _ := s.Sessions.Get(r, SessionName)
+	sess.AddFlash(msg)
+	_ = sess.Save(r, w)
+}
+
+func (s *Server) getFlashes(w http.ResponseWriter, r *http.Request) []string {
+	sess, _ := s.Sessions.Get(r, SessionName)
+	raw := sess.Flashes()
+	if len(raw) == 0 {
+		return nil
+	}
+	_ = sess.Save(r, w)
+	out := make([]string, len(raw))
+	for i, v := range raw {
+		out[i], _ = v.(string)
+	}
+	return out
 }
 
 var (
@@ -151,33 +215,35 @@ func (s *Server) ServeRootPage(w http.ResponseWriter, r *http.Request) {
 	}
 
 	renderTemplate(w, "search.html", ViewData{
-		User:    nil,
-		Flashes: nil,
+		User:    currentUser(r),
+		Flashes: s.getFlashes(w, r),
 		Results: results,
 		Query:   q,
 	})
 }
 
 func (s *Server) ServeSearchPage(w http.ResponseWriter, r *http.Request) {
-	renderTemplate(w, "search.html", ViewData{})
+	renderTemplate(w, "search.html", ViewData{User: currentUser(r), Flashes: s.getFlashes(w, r)})
 }
 
 func (s *Server) ServeAboutPage(w http.ResponseWriter, r *http.Request) {
-	renderTemplate(w, "about.html", ViewData{})
+	renderTemplate(w, "about.html", ViewData{User: currentUser(r), Flashes: s.getFlashes(w, r)})
 }
 
 func (s *Server) ServeRegisterPage(w http.ResponseWriter, r *http.Request) {
-	renderTemplate(w, "register.html", ViewData{
-		User:    nil,
-		Flashes: nil,
-	})
+	if currentUser(r) != nil {
+		http.Redirect(w, r, "/", http.StatusSeeOther)
+		return
+	}
+	renderTemplate(w, "register.html", ViewData{Flashes: s.getFlashes(w, r)})
 }
 
 func (s *Server) ServeLoginPage(w http.ResponseWriter, r *http.Request) {
-	renderTemplate(w, "login.html", ViewData{
-		User:    nil,
-		Flashes: nil,
-	})
+	if currentUser(r) != nil {
+		http.Redirect(w, r, "/", http.StatusSeeOther)
+		return
+	}
+	renderTemplate(w, "login.html", ViewData{Flashes: s.getFlashes(w, r)})
 }
 
 func (s *Server) Search(w http.ResponseWriter, r *http.Request) {
@@ -208,11 +274,49 @@ func (s *Server) Search(w http.ResponseWriter, r *http.Request) {
 }
 
 func (s *Server) Register(w http.ResponseWriter, r *http.Request) {
-	msg := "Not implemented yet"
-	code := 200
-	w.Header().Set("Content-Type", "application/json")
-	w.WriteHeader(http.StatusOK)
-	_ = json.NewEncoder(w).Encode(AuthResponse{StatusCode: &code, Message: &msg})
+	if currentUser(r) != nil {
+		http.Redirect(w, r, "/", http.StatusSeeOther)
+		return
+	}
+
+	username := strings.TrimSpace(r.FormValue("username"))
+	email := strings.TrimSpace(r.FormValue("email"))
+	password := r.FormValue("password")
+	password2 := r.FormValue("password2")
+
+	var formError string
+	switch {
+	case username == "":
+		formError = "You have to enter a username"
+	case email == "" || !strings.Contains(email, "@"):
+		formError = "You have to enter a valid email address"
+	case password == "":
+		formError = "You have to enter a password"
+	case password != password2:
+		formError = "The two passwords do not match"
+	default:
+		_, err := db.GetUserByUsername(s.DB, username)
+		if err == nil {
+			formError = "The username is already taken"
+		} else if !errors.Is(err, db.ErrUserNotFound) {
+			http.Error(w, "internal error", http.StatusInternalServerError)
+			return
+		}
+	}
+
+	if formError != "" {
+		renderTemplate(w, "register.html", ViewData{Error: formError})
+		return
+	}
+
+	hash := auth.HashPassword(password)
+	if err := db.CreateUser(s.DB, username, email, hash); err != nil {
+		http.Error(w, "internal error", http.StatusInternalServerError)
+		return
+	}
+
+	s.addFlash(w, r, "You were successfully registered and can login now")
+	http.Redirect(w, r, "/login", http.StatusSeeOther)
 }
 
 func (s *Server) Login(w http.ResponseWriter, r *http.Request) {
