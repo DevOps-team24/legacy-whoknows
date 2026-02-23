@@ -352,9 +352,10 @@ func (s *Server) Login(w http.ResponseWriter, r *http.Request) {
 }
 
 func (s *Server) Logout(w http.ResponseWriter, r *http.Request) {
-	msg := "Logged out"
-	code := 200
-	w.Header().Set("Content-Type", "application/json")
-	w.WriteHeader(http.StatusOK)
-	_ = json.NewEncoder(w).Encode(AuthResponse{StatusCode: &code, Message: &msg})
+	sess, _ := s.Sessions.Get(r, SessionName)
+	delete(sess.Values, "user_id")
+	_ = sess.Save(r, w)
+
+	s.addFlash(w, r, "You were logged out")
+	http.Redirect(w, r, "/", http.StatusSeeOther)
 }
