@@ -320,11 +320,35 @@ func (s *Server) Register(w http.ResponseWriter, r *http.Request) {
 }
 
 func (s *Server) Login(w http.ResponseWriter, r *http.Request) {
-	msg := "Not implemented yet"
-	code := 200
-	w.Header().Set("Content-Type", "application/json")
-	w.WriteHeader(http.StatusOK)
-	_ = json.NewEncoder(w).Encode(AuthResponse{StatusCode: &code, Message: &msg})
+	if currentUser(r) != nil {
+		http.Redirect(w, r, "/", http.StatusSeeOther)
+		return
+	}
+
+	username := strings.TrimSpace(r.FormValue("username"))
+	password := r.FormValue("password")
+
+	user, err := db.GetUserByUsername(s.DB, username)
+	if err != nil {
+		if errors.Is(err, db.ErrUserNotFound) {
+			renderTemplate(w, "login.html", ViewData{Error: "Invalid username"})
+			return
+		}
+		http.Error(w, "internal error", http.StatusInternalServerError)
+		return
+	}
+
+	if !auth.VerifyPassword(user.PasswordHash, password) {
+		renderTemplate(w, "login.html", ViewData{Error: "Invalid password"})
+		return
+	}
+
+	sess, _ := s.Sessions.Get(r, SessionName)
+	sess.Values["user_id"] = user.ID
+	_ = sess.Save(r, w)
+
+	s.addFlash(w, r, "You were logged in")
+	http.Redirect(w, r, "/", http.StatusSeeOther)
 }
 
 func (s *Server) Logout(w http.ResponseWriter, r *http.Request) {
