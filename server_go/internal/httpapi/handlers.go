@@ -5,6 +5,7 @@ import (
 	"encoding/json"
 	"errors"
 	"html/template"
+	"log"
 	"net/http"
 	"os"
 	"path/filepath"
@@ -31,6 +32,16 @@ type SearchResponse struct {
 type RequestValidationError struct {
 	StatusCode int     `json:"statusCode"`
 	Message    *string `json:"message"`
+}
+
+type ValidationError struct {
+	Loc  []any  `json:"loc"`
+	Msg  string `json:"msg"`
+	Type string `json:"type"`
+}
+
+type HTTPValidationError struct {
+	Detail []ValidationError `json:"detail"`
 }
 
 type User struct {
@@ -195,6 +206,58 @@ func renderTemplate(w http.ResponseWriter, name string, data any) {
 	}
 }
 
+func writeJSON(w http.ResponseWriter, status int, payload any) {
+	w.Header().Set("Content-Type", "application/json")
+	w.WriteHeader(status)
+	_ = json.NewEncoder(w).Encode(payload)
+}
+
+func asPtr[T any](v T) *T {
+	return &v
+}
+
+func writeAuth(w http.ResponseWriter, statusCode int, message string) {
+	msg := message
+	writeJSON(w, http.StatusOK, AuthResponse{
+		StatusCode: asPtr(statusCode),
+		Message:    &msg,
+	})
+}
+
+func writeLoginRegisterValidationError(w http.ResponseWriter, field string) {
+	writeJSON(w, http.StatusUnprocessableEntity, HTTPValidationError{
+		Detail: []ValidationError{
+			{
+				Loc:  []any{"body", field},
+				Msg:  "Field required",
+				Type: "missing",
+			},
+		},
+	})
+}
+
+func requireFormFields(w http.ResponseWriter, r *http.Request, requiredFields ...string) bool {
+	if err := r.ParseForm(); err != nil {
+		writeLoginRegisterValidationError(w, requiredFields[0])
+		return false
+	}
+
+	for _, field := range requiredFields {
+		if _, ok := r.PostForm[field]; !ok {
+			writeLoginRegisterValidationError(w, field)
+			return false
+		}
+	}
+	return true
+}
+
+func writeSearchValidationError(w http.ResponseWriter, msg string) {
+	writeJSON(w, http.StatusUnprocessableEntity, RequestValidationError{
+		StatusCode: http.StatusUnprocessableEntity,
+		Message:    &msg,
+	})
+}
+
 func (s *Server) ServeRootPage(w http.ResponseWriter, r *http.Request) {
 	q := strings.TrimSpace(r.URL.Query().Get("q"))
 
@@ -249,10 +312,8 @@ func (s *Server) ServeLoginPage(w http.ResponseWriter, r *http.Request) {
 func (s *Server) Search(w http.ResponseWriter, r *http.Request) {
 	q := strings.TrimSpace(r.URL.Query().Get("q"))
 	if q == "" {
-		// Match legacy behaviour: empty query simply returns empty result set with 200 OK
-		w.Header().Set("Content-Type", "application/json")
-		w.WriteHeader(http.StatusOK)
-		_ = json.NewEncoder(w).Encode(SearchResponse{Data: []map[string]any{}})
+		msg := "Missing required query parameter: q"
+		writeSearchValidationError(w, msg)
 		return
 	}
 
@@ -264,18 +325,21 @@ func (s *Server) Search(w http.ResponseWriter, r *http.Request) {
 
 	results, err := db.SearchPages(s.DB, q, lang)
 	if err != nil {
-		http.Error(w, "internal error", http.StatusInternalServerError)
+		log.Printf("search query failed: %v", err)
+		writeJSON(w, http.StatusOK, SearchResponse{Data: []map[string]any{}})
 		return
 	}
 
-	w.Header().Set("Content-Type", "application/json")
-	w.WriteHeader(http.StatusOK)
-	_ = json.NewEncoder(w).Encode(SearchResponse{Data: results})
+	writeJSON(w, http.StatusOK, SearchResponse{Data: results})
 }
 
 func (s *Server) Register(w http.ResponseWriter, r *http.Request) {
+	if !requireFormFields(w, r, "username", "email", "password") {
+		return
+	}
+
 	if currentUser(r) != nil {
-		http.Redirect(w, r, "/", http.StatusSeeOther)
+		writeAuth(w, http.StatusSeeOther, "Already logged in")
 		return
 	}
 
@@ -299,29 +363,34 @@ func (s *Server) Register(w http.ResponseWriter, r *http.Request) {
 		if err == nil {
 			formError = "The username is already taken"
 		} else if !errors.Is(err, db.ErrUserNotFound) {
-			http.Error(w, "internal error", http.StatusInternalServerError)
+			log.Printf("register username lookup failed: %v", err)
+			writeAuth(w, http.StatusInternalServerError, "internal error")
 			return
 		}
 	}
 
 	if formError != "" {
-		renderTemplate(w, "register.html", ViewData{Error: formError})
+		writeAuth(w, http.StatusBadRequest, formError)
 		return
 	}
 
 	hash := auth.HashPassword(password)
 	if err := db.CreateUser(s.DB, username, email, hash); err != nil {
-		http.Error(w, "internal error", http.StatusInternalServerError)
+		log.Printf("register create user failed: %v", err)
+		writeAuth(w, http.StatusInternalServerError, "internal error")
 		return
 	}
 
-	s.addFlash(w, r, "You were successfully registered and can login now")
-	http.Redirect(w, r, "/login", http.StatusSeeOther)
+	writeAuth(w, http.StatusOK, "You were successfully registered and can login now")
 }
 
 func (s *Server) Login(w http.ResponseWriter, r *http.Request) {
+	if !requireFormFields(w, r, "username", "password") {
+		return
+	}
+
 	if currentUser(r) != nil {
-		http.Redirect(w, r, "/", http.StatusSeeOther)
+		writeAuth(w, http.StatusSeeOther, "Already logged in")
 		return
 	}
 
@@ -331,15 +400,16 @@ func (s *Server) Login(w http.ResponseWriter, r *http.Request) {
 	user, err := db.GetUserByUsername(s.DB, username)
 	if err != nil {
 		if errors.Is(err, db.ErrUserNotFound) {
-			renderTemplate(w, "login.html", ViewData{Error: "Invalid username"})
+			writeAuth(w, http.StatusUnauthorized, "Invalid username")
 			return
 		}
-		http.Error(w, "internal error", http.StatusInternalServerError)
+		log.Printf("login username lookup failed: %v", err)
+		writeAuth(w, http.StatusInternalServerError, "internal error")
 		return
 	}
 
 	if !auth.VerifyPassword(user.PasswordHash, password) {
-		renderTemplate(w, "login.html", ViewData{Error: "Invalid password"})
+		writeAuth(w, http.StatusUnauthorized, "Invalid password")
 		return
 	}
 
@@ -347,8 +417,7 @@ func (s *Server) Login(w http.ResponseWriter, r *http.Request) {
 	sess.Values["user_id"] = user.ID
 	_ = sess.Save(r, w)
 
-	s.addFlash(w, r, "You were logged in")
-	http.Redirect(w, r, "/", http.StatusSeeOther)
+	writeAuth(w, http.StatusOK, "You were logged in")
 }
 
 func (s *Server) Logout(w http.ResponseWriter, r *http.Request) {
@@ -356,6 +425,9 @@ func (s *Server) Logout(w http.ResponseWriter, r *http.Request) {
 	delete(sess.Values, "user_id")
 	_ = sess.Save(r, w)
 
-	s.addFlash(w, r, "You were logged out")
-	http.Redirect(w, r, "/", http.StatusSeeOther)
+	statusCode := http.StatusOK
+	msg := "You were logged out"
+	w.Header().Set("Content-Type", "application/json")
+	w.WriteHeader(http.StatusOK)
+	_ = json.NewEncoder(w).Encode(AuthResponse{StatusCode: &statusCode, Message: &msg})
 }

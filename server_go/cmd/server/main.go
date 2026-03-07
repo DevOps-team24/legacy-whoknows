@@ -14,7 +14,7 @@ import (
 func main() {
 	dbPath := os.Getenv("WHOKNOWS_DB_PATH")
 	if dbPath == "" {
-		dbPath = "./whoknows.db"
+		dbPath = "../whoknows.db"
 	}
 
 	conn, err := db.Open(dbPath)
@@ -22,6 +22,14 @@ func main() {
 		log.Fatal(err)
 	}
 	defer conn.Close()
+
+	migrationPath := os.Getenv("WHOKNOWS_MIGRATION_PATH")
+	if migrationPath == "" {
+		migrationPath = "./migrations/001_init.sql"
+	}
+	if err := db.ApplyMigrations(conn, migrationPath); err != nil {
+		log.Fatal(err)
+	}
 
 	secretKey := os.Getenv("WHOKNOWS_SECRET_KEY")
 	if secretKey == "" {
