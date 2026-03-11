@@ -24,8 +24,6 @@ func NewRouter(s *Server) http.Handler {
 
 	// HTML routes
 	r.Get("/", s.ServeRootPage)
-	r.Get("/search", s.ServeRootPage)
-	r.Get("/about", s.ServeAboutPage)
 	r.Get("/register", s.ServeRegisterPage)
 	r.Get("/login", s.ServeLoginPage)
 
@@ -37,4 +35,3 @@ func NewRouter(s *Server) http.Handler {
 
 	return r
 }
-

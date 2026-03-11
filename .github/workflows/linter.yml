@@ -1,0 +1,25 @@
+name: Lint code base
+
+on:
+  push:
+    branches: [dev]
+  pull_request:
+    branches: [dev]
+
+jobs:
+  build:
+    name: Lint code base
+    runs-on: ubuntu-latest
+    steps:
+      - name: Check out code
+        uses: actions/checkout@v3
+        with:
+          fetch-depth: 0
+
+      - name: Lint code base
+        uses: github/super-linter@v4
+        env:
+          VALIDATE_ALL_CODEBASE: false
+          DEFAULT_BRANCH: dev
+          DEFAULT_WORKSPACE: server_go
+          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
