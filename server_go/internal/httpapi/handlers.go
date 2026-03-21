@@ -92,12 +92,6 @@ func currentUser(r *http.Request) *User {
 	return u
 }
 
-func (s *Server) addFlash(w http.ResponseWriter, r *http.Request, msg string) {
-	sess, _ := s.Sessions.Get(r, SessionName)
-	sess.AddFlash(msg)
-	_ = sess.Save(r, w)
-}
-
 func (s *Server) getFlashes(w http.ResponseWriter, r *http.Request) []string {
 	sess, _ := s.Sessions.Get(r, SessionName)
 	raw := sess.Flashes()
