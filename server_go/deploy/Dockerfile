@@ -1,5 +1,5 @@
 # Build stage
-FROM golang:1.25-alpine AS builder
+FROM golang:1.24-alpine AS builder
 
 WORKDIR /build
 
@@ -13,6 +13,7 @@ RUN go mod tidy && \
 # Runtime stage
 FROM alpine:3.21
 
+# hadolint ignore=DL3018
 RUN apk --no-cache add ca-certificates sqlite-libs
 
 WORKDIR /app
