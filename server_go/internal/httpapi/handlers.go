@@ -258,6 +258,13 @@ func writeSearchValidationError(w http.ResponseWriter, msg string) {
 	})
 }
 
+// ServeRootPage godoc
+// @Summary Serve Root Page
+// @Description Serves the main search page as HTML.
+// @Tags pages
+// @Produce html
+// @Success 200 {string} string "HTML page"
+// @Router / [get]
 func (s *Server) ServeRootPage(w http.ResponseWriter, r *http.Request) {
 	q := strings.TrimSpace(r.URL.Query().Get("q"))
 
@@ -293,6 +300,13 @@ func (s *Server) ServeAboutPage(w http.ResponseWriter, r *http.Request) {
 	renderTemplate(w, "about.html", ViewData{User: currentUser(r), Flashes: s.getFlashes(w, r)})
 }
 
+// ServeRegisterPage godoc
+// @Summary Serve Register Page
+// @Description Serves the registration page as HTML.
+// @Tags pages
+// @Produce html
+// @Success 200 {string} string "HTML page"
+// @Router /register [get]
 func (s *Server) ServeRegisterPage(w http.ResponseWriter, r *http.Request) {
 	if currentUser(r) != nil {
 		http.Redirect(w, r, "/", http.StatusSeeOther)
@@ -301,6 +315,13 @@ func (s *Server) ServeRegisterPage(w http.ResponseWriter, r *http.Request) {
 	renderTemplate(w, "register.html", ViewData{Flashes: s.getFlashes(w, r)})
 }
 
+// ServeLoginPage godoc
+// @Summary Serve Login Page
+// @Description Serves the login page as HTML.
+// @Tags pages
+// @Produce html
+// @Success 200 {string} string "HTML page"
+// @Router /login [get]
 func (s *Server) ServeLoginPage(w http.ResponseWriter, r *http.Request) {
 	if currentUser(r) != nil {
 		http.Redirect(w, r, "/", http.StatusSeeOther)
@@ -309,6 +330,16 @@ func (s *Server) ServeLoginPage(w http.ResponseWriter, r *http.Request) {
 	renderTemplate(w, "login.html", ViewData{Flashes: s.getFlashes(w, r)})
 }
 
+// Search godoc
+// @Summary Search
+// @Description Search wiki pages by title. Returns matching pages as JSON.
+// @Tags search
+// @Produce json
+// @Param q query string true "Search query"
+// @Param language query string false "Language code (e.g., 'en')"
+// @Success 200 {object} SearchResponse
+// @Failure 422 {object} RequestValidationError "Unprocessable Entity"
+// @Router /api/search [get]
 func (s *Server) Search(w http.ResponseWriter, r *http.Request) {
 	q := strings.TrimSpace(r.URL.Query().Get("q"))
 	if q == "" {
@@ -333,6 +364,19 @@ func (s *Server) Search(w http.ResponseWriter, r *http.Request) {
 	writeJSON(w, http.StatusOK, SearchResponse{Data: results})
 }
 
+// Register godoc
+// @Summary Register
+// @Description Create a new user account. Validates input and checks for duplicate usernames.
+// @Tags auth
+// @Accept x-www-form-urlencoded
+// @Produce json
+// @Param username formData string true "Username"
+// @Param email formData string true "Email"
+// @Param password formData string true "Password"
+// @Param password2 formData string false "Password2"
+// @Success 200 {object} AuthResponse
+// @Failure 422 {object} HTTPValidationError "Validation Error"
+// @Router /api/register [post]
 func (s *Server) Register(w http.ResponseWriter, r *http.Request) {
 	if !requireFormFields(w, r, "username", "email", "password") {
 		return
@@ -384,6 +428,17 @@ func (s *Server) Register(w http.ResponseWriter, r *http.Request) {
 	writeAuth(w, http.StatusOK, "You were successfully registered and can login now")
 }
 
+// Login godoc
+// @Summary Login
+// @Description Authenticate a user with username and password. Sets a session cookie on success.
+// @Tags auth
+// @Accept x-www-form-urlencoded
+// @Produce json
+// @Param username formData string true "Username"
+// @Param password formData string true "Password"
+// @Success 200 {object} AuthResponse
+// @Failure 422 {object} HTTPValidationError "Validation Error"
+// @Router /api/login [post]
 func (s *Server) Login(w http.ResponseWriter, r *http.Request) {
 	if !requireFormFields(w, r, "username", "password") {
 		return
@@ -420,6 +475,13 @@ func (s *Server) Login(w http.ResponseWriter, r *http.Request) {
 	writeAuth(w, http.StatusOK, "You were logged in")
 }
 
+// Logout godoc
+// @Summary Logout
+// @Description Clear the session and log the user out.
+// @Tags auth
+// @Produce json
+// @Success 200 {object} AuthResponse
+// @Router /api/logout [get]
 func (s *Server) Logout(w http.ResponseWriter, r *http.Request) {
 	sess, _ := s.Sessions.Get(r, SessionName)
 	delete(sess.Values, "user_id")

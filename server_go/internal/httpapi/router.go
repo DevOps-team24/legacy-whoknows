@@ -6,6 +6,7 @@ import (
 
 	"github.com/go-chi/chi/v5"
 	"github.com/gorilla/sessions"
+	httpSwagger "github.com/swaggo/http-swagger"
 )
 
 const SessionName = "session"
@@ -32,6 +33,9 @@ func NewRouter(s *Server) http.Handler {
 	r.Post("/api/register", s.Register)
 	r.Post("/api/login", s.Login)
 	r.Get("/api/logout", s.Logout)
+
+	// Swagger UI
+	r.Get("/swagger/*", httpSwagger.WrapHandler)
 
 	return r
 }
