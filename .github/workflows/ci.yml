@@ -11,10 +11,10 @@ jobs:
     name: Build & Test
     runs-on: ubuntu-latest
     steps:
-      - uses: actions/checkout@v4
+      - uses: actions/checkout@1e31de5234b9f8995739874a8ce0492dc87873e2
 
       - name: Set up Go
-        uses: actions/setup-go@v5
+        uses: actions/setup-go@0c52d547c9bc32b1aa3301fd7a9cb496313a4491
         with:
           go-version: '1.24'
           cache-dependency-path: server_go/go.sum
@@ -31,16 +31,16 @@ jobs:
     name: Go Lint
     runs-on: ubuntu-latest
     steps:
-      - uses: actions/checkout@v4
+      - uses: actions/checkout@1e31de5234b9f8995739874a8ce0492dc87873e2
 
       - name: Set up Go
-        uses: actions/setup-go@v5
+        uses: actions/setup-go@0c52d547c9bc32b1aa3301fd7a9cb496313a4491
         with:
           go-version: '1.24'
           cache-dependency-path: server_go/go.sum
 
       - name: Run golangci-lint
-        uses: golangci/golangci-lint-action@v6
+        uses: golangci/golangci-lint-action@23faadfdeb23a6f9e511beaba149bb123b5b145a
         with:
           version: latest
           working-directory: server_go
@@ -49,12 +49,12 @@ jobs:
     name: Lint (Dockerfile, YAML, JSON, etc.)
     runs-on: ubuntu-latest
     steps:
-      - uses: actions/checkout@v4
+      - uses: actions/checkout@1e31de5234b9f8995739874a8ce0492dc87873e2
         with:
           fetch-depth: 0
 
       - name: Super-Linter
-        uses: super-linter/super-linter/slim@v7
+        uses: super-linter/super-linter/slim@02a1172d274f021e4c70f66e23f1085eadd1064b
         env:
           VALIDATE_ALL_CODEBASE: false
           DEFAULT_BRANCH: dev
