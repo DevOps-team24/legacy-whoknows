@@ -8,10 +8,16 @@ import (
 
 	"github.com/gorilla/sessions"
 
+	_ "whoknows_variations/server_go/docs"
 	"whoknows_variations/server_go/internal/db"
 	"whoknows_variations/server_go/internal/httpapi"
 )
 
+// @title WhoKnows API
+// @version 1.0
+// @description API for the WhoKnows search application
+// @host huw.dk
+// @BasePath /
 func main() {
 	workingDir, _ := os.Getwd()
 	dbPath := os.Getenv("WHOKNOWS_DB_PATH")
