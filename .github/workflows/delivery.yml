@@ -7,10 +7,6 @@ on:
     branches: [ main ]
   workflow_dispatch:
 
-env:
-  CR_PAT: ${{ secrets.CR_PAT }}
-  DOCKER_GITHUB_USERNAME: ${{ secrets.DOCKER_GITHUB_USERNAME }}
-
 jobs:
   build:
     runs-on: ubuntu-latest
@@ -23,7 +19,7 @@ jobs:
         uses: docker/setup-buildx-action@v1
 
       - name: Log in to GitHub Container Registry
-        run: echo ${{ env.CR_PAT }} | docker login ghcr.io -u ${{ env.DOCKER_GITHUB_USERNAME }} --password-stdin
+        run: echo "${{ secrets.CR_PAT }}" | docker login ghcr.io -u "${{ secrets.DOCKER_GITHUB_USERNAME }}" --password-stdin
 
       - name: Build and Push Docker Images
         working-directory: ./server_go/deploy
