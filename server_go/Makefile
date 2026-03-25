@@ -1,4 +1,4 @@
-.PHONY: run build test lint lint-fix swagger swagger-check clean docker-build docker-up docker-down deploy help
+.PHONY: run dev build test lint lint-fix swagger swagger-check clean docker-build docker-up docker-down deploy help
 
 BINARY    := whoknows-server
 MAIN      := ./cmd/server
@@ -12,6 +12,9 @@ help: ## Show this help
 
 run: ## Run the server locally
 	go run $(MAIN)
+
+dev: ## Run with hot reload (requires: go install github.com/air-verse/air@latest)
+	air
 
 build: ## Build the binary
 	go build -o $(BINARY) $(MAIN)
