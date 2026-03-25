@@ -7,7 +7,7 @@ on:
 
 jobs:
   deliver:
-    uses: ./.github/workflows/delivery.yaml
+    uses: ./.github/workflows/delivery.yml
     secrets: inherit
 
   deploy:
