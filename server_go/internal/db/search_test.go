@@ -34,7 +34,11 @@ func setupTestDB(t *testing.T) *sql.DB {
 
 func TestSearchPages_MatchesTitle(t *testing.T) {
 	conn := setupTestDB(t)
-	defer conn.Close()
+	defer func() {
+		if err := conn.Close(); err != nil {
+			t.Fatalf("close db: %v", err)
+		}
+	}()
 
 	results, err := SearchPages(conn, "Go", nil)
 	if err != nil {
@@ -50,7 +54,11 @@ func TestSearchPages_MatchesTitle(t *testing.T) {
 
 func TestSearchPages_NoMatch(t *testing.T) {
 	conn := setupTestDB(t)
-	defer conn.Close()
+	defer func() {
+		if err := conn.Close(); err != nil {
+			t.Fatalf("close db: %v", err)
+		}
+	}()
 
 	results, err := SearchPages(conn, "Rust", nil)
 	if err != nil {
@@ -63,7 +71,11 @@ func TestSearchPages_NoMatch(t *testing.T) {
 
 func TestSearchPages_EmptyQuery(t *testing.T) {
 	conn := setupTestDB(t)
-	defer conn.Close()
+	defer func() {
+		if err := conn.Close(); err != nil {
+			t.Fatalf("close db: %v", err)
+		}
+	}()
 
 	results, err := SearchPages(conn, "", nil)
 	if err != nil {
@@ -76,7 +88,11 @@ func TestSearchPages_EmptyQuery(t *testing.T) {
 
 func TestSearchPages_FiltersByLanguage(t *testing.T) {
 	conn := setupTestDB(t)
-	defer conn.Close()
+	defer func() {
+		if err := conn.Close(); err != nil {
+			t.Fatalf("close db: %v", err)
+		}
+	}()
 
 	da := "da"
 	results, err := SearchPages(conn, "Søgning", &da)
@@ -93,7 +109,11 @@ func TestSearchPages_FiltersByLanguage(t *testing.T) {
 
 func TestSearchPages_DefaultsToEnglish(t *testing.T) {
 	conn := setupTestDB(t)
-	defer conn.Close()
+	defer func() {
+		if err := conn.Close(); err != nil {
+			t.Fatalf("close db: %v", err)
+		}
+	}()
 
 	results, err := SearchPages(conn, "Programming", nil)
 	if err != nil {
@@ -111,7 +131,11 @@ func TestSearchPages_DefaultsToEnglish(t *testing.T) {
 
 func TestSearchPages_PartialMatch(t *testing.T) {
 	conn := setupTestDB(t)
-	defer conn.Close()
+	defer func() {
+		if err := conn.Close(); err != nil {
+			t.Fatalf("close db: %v", err)
+		}
+	}()
 
 	results, err := SearchPages(conn, "Prog", nil)
 	if err != nil {

@@ -1,3 +1,4 @@
+---
 name: CI
 
 on:
@@ -5,6 +6,9 @@ on:
     branches: [dev]
   pull_request:
     branches: [dev]
+
+permissions:
+  contents: read
 
 jobs:
   build-and-test:
@@ -16,16 +20,18 @@ jobs:
       - name: Set up Go
         uses: actions/setup-go@0c52d547c9bc32b1aa3301fd7a9cb496313a4491
         with:
-          go-version: '1.24'
+          go-version: '1.25.8'
           cache-dependency-path: server_go/go.sum
 
       - name: Build
-        run: go mod tidy && go build -v ./...
         working-directory: server_go
+        run: |
+          go mod tidy
+          go build -v ./...
 
       - name: Test
-        run: go test -v ./...
         working-directory: server_go
+        run: go test -v ./...
 
   golangci-lint:
     name: Go Lint
@@ -36,14 +42,54 @@ jobs:
       - name: Set up Go
         uses: actions/setup-go@0c52d547c9bc32b1aa3301fd7a9cb496313a4491
         with:
-          go-version: '1.24'
+          go-version: '1.25.8'
           cache-dependency-path: server_go/go.sum
 
       - name: Run golangci-lint
-        uses: golangci/golangci-lint-action@23faadfdeb23a6f9e511beaba149bb123b5b145a
+        uses: golangci/golangci-lint-action@0a35821d5c230e903fcfe077583637dea1b27b47
         with:
-          version: latest
+          version: v2.6.2
           working-directory: server_go
+
+  gosec:
+    name: Gosec
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@1e31de5234b9f8995739874a8ce0492dc87873e2
+
+      - name: Set up Go
+        uses: actions/setup-go@0c52d547c9bc32b1aa3301fd7a9cb496313a4491
+        with:
+          go-version: '1.25.8'
+          cache-dependency-path: server_go/go.sum
+
+      - name: Install gosec
+        run: go install github.com/securego/gosec/v2/cmd/gosec@latest
+        working-directory: server_go
+
+      - name: Run gosec
+        run: gosec ./...
+        working-directory: server_go
+
+  govulncheck:
+    name: Govulncheck
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@1e31de5234b9f8995739874a8ce0492dc87873e2
+
+      - name: Set up Go
+        uses: actions/setup-go@0c52d547c9bc32b1aa3301fd7a9cb496313a4491
+        with:
+          go-version: '1.25.8'
+          cache-dependency-path: server_go/go.sum
+
+      - name: Install govulncheck
+        run: go install golang.org/x/vuln/cmd/govulncheck@latest
+        working-directory: server_go
+
+      - name: Run govulncheck
+        run: govulncheck ./...
+        working-directory: server_go
 
   super-lint:
     name: Lint (Dockerfile, YAML, JSON, etc.)
@@ -58,9 +104,14 @@ jobs:
         env:
           VALIDATE_ALL_CODEBASE: false
           DEFAULT_BRANCH: dev
+          STRIP_DEFAULT_WORKSPACE_FOR_REGEX: true
+          FILTER_REGEX_EXCLUDE: ^server_go/templates/.*\.html$
           VALIDATE_GO: false
           VALIDATE_GO_MODULES: false
           VALIDATE_JSCPD: false
+          VALIDATE_CSS_PRETTIER: false
+          VALIDATE_HTML: false
+          VALIDATE_HTML_PRETTIER: false
           VALIDATE_JSON_PRETTIER: false
           VALIDATE_YAML_PRETTIER: false
           VALIDATE_CHECKOV: false

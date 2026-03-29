@@ -30,7 +30,11 @@ func setupUsersDB(t *testing.T) *sql.DB {
 
 func TestCreateUser_And_GetByUsername(t *testing.T) {
 	conn := setupUsersDB(t)
-	defer conn.Close()
+	defer func() {
+		if err := conn.Close(); err != nil {
+			t.Fatalf("close db: %v", err)
+		}
+	}()
 
 	err := CreateUser(conn, "alice", "alice@example.com", "abc123hash")
 	if err != nil {
@@ -54,7 +58,11 @@ func TestCreateUser_And_GetByUsername(t *testing.T) {
 
 func TestGetUserByUsername_NotFound(t *testing.T) {
 	conn := setupUsersDB(t)
-	defer conn.Close()
+	defer func() {
+		if err := conn.Close(); err != nil {
+			t.Fatalf("close db: %v", err)
+		}
+	}()
 
 	_, err := GetUserByUsername(conn, "nobody")
 	if !errors.Is(err, ErrUserNotFound) {
@@ -64,7 +72,11 @@ func TestGetUserByUsername_NotFound(t *testing.T) {
 
 func TestGetUserByID(t *testing.T) {
 	conn := setupUsersDB(t)
-	defer conn.Close()
+	defer func() {
+		if err := conn.Close(); err != nil {
+			t.Fatalf("close db: %v", err)
+		}
+	}()
 
 	_ = CreateUser(conn, "bob", "bob@example.com", "somehash")
 
@@ -84,7 +96,11 @@ func TestGetUserByID(t *testing.T) {
 
 func TestGetUserByID_NotFound(t *testing.T) {
 	conn := setupUsersDB(t)
-	defer conn.Close()
+	defer func() {
+		if err := conn.Close(); err != nil {
+			t.Fatalf("close db: %v", err)
+		}
+	}()
 
 	_, err := GetUserByID(conn, 9999)
 	if !errors.Is(err, ErrUserNotFound) {
@@ -94,7 +110,11 @@ func TestGetUserByID_NotFound(t *testing.T) {
 
 func TestCreateUser_DuplicateUsername(t *testing.T) {
 	conn := setupUsersDB(t)
-	defer conn.Close()
+	defer func() {
+		if err := conn.Close(); err != nil {
+			t.Fatalf("close db: %v", err)
+		}
+	}()
 
 	_ = CreateUser(conn, "charlie", "charlie@example.com", "hash1")
 	err := CreateUser(conn, "charlie", "other@example.com", "hash2")
