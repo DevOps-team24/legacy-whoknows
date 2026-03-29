@@ -32,7 +32,11 @@ func main() {
 	if err != nil {
 		log.Fatal(err)
 	}
-	defer conn.Close()
+	defer func() {
+		if err := conn.Close(); err != nil {
+			log.Printf("close db connection failed: %v", err)
+		}
+	}()
 
 	secretKey := os.Getenv("WHOKNOWS_SECRET_KEY")
 	if secretKey == "" {
