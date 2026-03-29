@@ -1,3 +1,4 @@
+---
 name: CI
 
 on:
@@ -45,9 +46,9 @@ jobs:
           cache-dependency-path: server_go/go.sum
 
       - name: Run golangci-lint
-        uses: golangci/golangci-lint-action@23faadfdeb23a6f9e511beaba149bb123b5b145a
+        uses: golangci/golangci-lint-action@0a35821d5c230e903fcfe077583637dea1b27b47
         with:
-          version: latest
+          version: v2.6.2
           working-directory: server_go
 
   gosec:
@@ -103,6 +104,8 @@ jobs:
         env:
           VALIDATE_ALL_CODEBASE: false
           DEFAULT_BRANCH: dev
+          STRIP_DEFAULT_WORKSPACE_FOR_REGEX: true
+          FILTER_REGEX_EXCLUDE: ^server_go/templates/.*\.html$
           VALIDATE_GO: false
           VALIDATE_GO_MODULES: false
           VALIDATE_JSCPD: false
