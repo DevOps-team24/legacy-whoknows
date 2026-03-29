@@ -5,6 +5,8 @@ import (
 	"net/http"
 	"os"
 	"path/filepath"
+	"strings"
+	"time"
 
 	"github.com/gorilla/sessions"
 
@@ -49,7 +51,22 @@ func main() {
 	if addr == "" {
 		addr = "0.0.0.0"
 	}
-	log.Printf("Connecting to DB at: %s", dbPath)
-	log.Printf("listening on %s:%s", addr, port)
-	log.Fatal(http.ListenAndServe(addr+":"+port, router))
+	log.Printf("Connecting to DB at: %s", sanitizeLogValue(dbPath))                  // #nosec G706 -- Value is newline-sanitized before logging; source is deployment configuration.
+	log.Printf("listening on %s:%s", sanitizeLogValue(addr), sanitizeLogValue(port)) // #nosec G706 -- Values are newline-sanitized before logging; sources are deployment configuration.
+
+	srv := &http.Server{
+		Addr:              addr + ":" + port,
+		Handler:           router,
+		ReadHeaderTimeout: 5 * time.Second,
+		ReadTimeout:       10 * time.Second,
+		WriteTimeout:      15 * time.Second,
+		IdleTimeout:       60 * time.Second,
+	}
+
+	log.Fatal(srv.ListenAndServe())
+}
+
+func sanitizeLogValue(value string) string {
+	value = strings.ReplaceAll(value, "\r", "")
+	return strings.ReplaceAll(value, "\n", "")
 }
