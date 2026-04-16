@@ -24,7 +24,9 @@ func SearchPages(conn *sql.DB, q string, language *string) ([]map[string]any, er
 	if err != nil {
 		return nil, err
 	}
-	defer rows.Close()
+	defer func() {
+		_ = rows.Close()
+	}()
 
 	out := make([]map[string]any, 0)
 	for rows.Next() {

@@ -89,9 +89,10 @@ func parseSwagger2(data []byte) (normSpec, error) {
 
 			for _, p := range op.Parameters {
 				np := normParam{Name: p.Name, Type: p.Type, In: p.In, Required: p.Required}
-				if p.In == "query" {
+				switch p.In {
+				case "query":
 					norm.QueryParams = append(norm.QueryParams, np)
-				} else if p.In == "formData" {
+				case "formData":
 					norm.FormParams = append(norm.FormParams, np)
 				}
 			}

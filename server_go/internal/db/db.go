@@ -13,10 +13,11 @@ func Open(dbPath string) (*sql.DB, error) {
 	}
 
 	if err := db.Ping(); err != nil {
-		db.Close()
+		if closeErr := db.Close(); closeErr != nil {
+			return nil, closeErr
+		}
 		return nil, err
 	}
 
 	return db, nil
 }
-
