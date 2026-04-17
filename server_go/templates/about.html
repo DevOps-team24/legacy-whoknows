@@ -1,12 +1,27 @@
 {{ define "body" }}
-<h2>About</h2>
-<div class="about">
-  <p>Who Knows? example app — migrated to Go templates.</p>
-  <figure>
-    <img src="/static/monkgroup.png" alt="Monk Group" class="about-image" />
-    <figcaption>Monk group photo</figcaption>
-  </figure>
-</div>
+<main>
+  <!-- Hero Section -->
+  <section class="about-hero">
+    <div class="about-hero-content">
+      <h1 class="about-hero-title">
+        Curating the <span class="about-hero-accent">Infinite</span>
+      </h1>
+      <p class="about-hero-subtitle">
+        A digital curator for the age of excess. WhoKnows distills the noise of the global information stream into verified, authoritative knowledge fragments.
+      </p>
+      <div class="about-hero-founded">
+        <div class="about-hero-line"></div>
+        <span class="about-hero-founded-text">Founded 2026</span>
+      </div>
+    </div>
+    <div class="about-hero-blur"></div>
+  </section>
+
+  <!-- Image Section -->
+  <section class="about-image-section">
+    <img src="/static/monkgroup.png" alt="The WhoKnows collective" class="about-full-image">
+  </section>
+</main>
 {{ end }}
 
 {{ define "about.html" }}
