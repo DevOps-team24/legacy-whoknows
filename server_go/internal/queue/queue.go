@@ -5,6 +5,7 @@ import (
 	"encoding/base64"
 	"encoding/json"
 	"fmt"
+	"io"
 	"net/http"
 	"time"
 )
@@ -44,7 +45,10 @@ func (c *Client) Send(payload any) error {
 	if err != nil {
 		return fmt.Errorf("send to queue: %w", err)
 	}
-	defer resp.Body.Close()
+	defer func() {
+		_, _ = io.Copy(io.Discard, resp.Body)
+		_ = resp.Body.Close()
+	}()
 
 	if resp.StatusCode != http.StatusCreated {
 		return fmt.Errorf("queue returned unexpected status: %d", resp.StatusCode)

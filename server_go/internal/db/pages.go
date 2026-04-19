@@ -9,7 +9,7 @@ func InsertPage(conn *sql.DB, title, url, language, content string) error {
 	_, err := conn.Exec(`
 		INSERT INTO pages (title, url, language, content, last_updated)
 		VALUES (?, ?, ?, ?, CURRENT_TIMESTAMP)
-		ON CONFLICT(title) DO NOTHING
+		ON CONFLICT DO NOTHING
 	`, title, url, language, content)
 	return err
 }

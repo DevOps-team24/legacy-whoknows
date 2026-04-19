@@ -2,6 +2,7 @@ package httpapi
 
 import (
 	"context"
+	"crypto/subtle"
 	"encoding/json"
 	"errors"
 	"html/template"
@@ -377,7 +378,8 @@ func (s *Server) queueMissedSearch(q string, lang *string) {
 	}
 	go func() {
 		if err := s.Queue.Send(map[string]string{"query": q, "language": langStr}); err != nil {
-			log.Printf("failed to queue missed search %q: %v", q, err)
+			sanitized := strings.NewReplacer("\r", "", "\n", "").Replace(q)
+			log.Printf("failed to queue missed search %q: %v", sanitized, err) // #nosec G706 -- query is newline-sanitized before logging
 		}
 	}()
 }
@@ -395,10 +397,14 @@ func (s *Server) queueMissedSearch(q string, lang *string) {
 // @Failure 401 {object} map[string]string
 // @Router /api/pages [post]
 func (s *Server) AddPage(w http.ResponseWriter, r *http.Request) {
-	if s.ScraperKey == "" || r.Header.Get("Authorization") != "Bearer "+s.ScraperKey {
+	expected := []byte("Bearer " + s.ScraperKey)
+	actual := []byte(r.Header.Get("Authorization"))
+	if s.ScraperKey == "" || subtle.ConstantTimeCompare(actual, expected) != 1 {
 		writeJSON(w, http.StatusUnauthorized, map[string]string{"error": "unauthorized"})
 		return
 	}
+
+	r.Body = http.MaxBytesReader(w, r.Body, 2<<20) // 2 MB cap
 
 	var page struct {
 		Title    string `json:"title"`
@@ -416,6 +422,10 @@ func (s *Server) AddPage(w http.ResponseWriter, r *http.Request) {
 	}
 	if page.Language == "" {
 		page.Language = "en"
+	}
+	if page.Language != "en" && page.Language != "da" {
+		writeJSON(w, http.StatusBadRequest, map[string]string{"error": "language must be 'en' or 'da'"})
+		return
 	}
 
 	if err := db.InsertPage(s.DB, page.Title, page.URL, page.Language, page.Content); err != nil {
