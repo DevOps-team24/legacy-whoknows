@@ -167,3 +167,8 @@ whoknows.db
 
 # Air hot reload
 server_go/tmp/
+
+# Playwright
+server_go/e2e/node_modules/
+server_go/e2e/playwright-report/
+server_go/e2e/test-results/
