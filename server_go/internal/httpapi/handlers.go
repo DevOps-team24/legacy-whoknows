@@ -75,7 +75,7 @@ func (s *Server) UserFromSession(next http.Handler) http.Handler {
 			return
 		}
 
-		row, err := db.GetUserByID(s.DB, userID)
+		row, err := db.GetUserByID(r.Context(), s.DB, userID)
 		if err != nil {
 			next.ServeHTTP(w, r)
 			return
@@ -271,7 +271,7 @@ func (s *Server) ServeRootPage(w http.ResponseWriter, r *http.Request) {
 	var results []map[string]any
 	if q != "" {
 		var err error
-		results, err = db.SearchPages(s.DB, q, lang)
+		results, err = db.SearchPages(r.Context(), s.DB, q, lang)
 		if err != nil {
 			http.Error(w, "internal error", http.StatusInternalServerError)
 			return
@@ -348,7 +348,7 @@ func (s *Server) Search(w http.ResponseWriter, r *http.Request) {
 		lang = &langParam
 	}
 
-	results, err := db.SearchPages(s.DB, q, lang)
+	results, err := db.SearchPages(r.Context(), s.DB, q, lang)
 	if err != nil {
 		log.Printf("search query failed: %v", err)
 		writeJSON(w, http.StatusOK, SearchResponse{Data: []map[string]any{}})
@@ -397,7 +397,7 @@ func (s *Server) Register(w http.ResponseWriter, r *http.Request) {
 	case password != password2:
 		formError = "The two passwords do not match"
 	default:
-		_, err := db.GetUserByUsername(s.DB, username)
+		_, err := db.GetUserByUsername(r.Context(), s.DB, username)
 		if err == nil {
 			formError = "The username is already taken"
 		} else if !errors.Is(err, db.ErrUserNotFound) {
@@ -413,7 +413,7 @@ func (s *Server) Register(w http.ResponseWriter, r *http.Request) {
 	}
 
 	hash := auth.HashPassword(password)
-	if err := db.CreateUser(s.DB, username, email, hash); err != nil {
+	if err := db.CreateUser(r.Context(), s.DB, username, email, hash); err != nil {
 		log.Printf("register create user failed: %v", err)
 		writeAuth(w, http.StatusInternalServerError, "internal error")
 		return
@@ -446,7 +446,7 @@ func (s *Server) Login(w http.ResponseWriter, r *http.Request) {
 	username := strings.TrimSpace(r.FormValue("username"))
 	password := r.FormValue("password")
 
-	user, err := db.GetUserByUsername(s.DB, username)
+	user, err := db.GetUserByUsername(r.Context(), s.DB, username)
 	if err != nil {
 		if errors.Is(err, db.ErrUserNotFound) {
 			writeAuth(w, http.StatusUnauthorized, "Invalid username")
