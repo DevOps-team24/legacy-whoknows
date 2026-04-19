@@ -20,17 +20,17 @@ jobs:
           mkdir -p ~/.ssh
           echo "${{ secrets.SSH_PRIVATE_KEY }}" > ~/.ssh/ssh_key
           chmod 600 ~/.ssh/ssh_key
-          ssh-keyscan -H $SSH_HOST >> ~/.ssh/known_hosts
+          ssh-keyscan -H "$SSH_HOST" >> ~/.ssh/known_hosts
 
       - name: Copy compose file to server
         run: |
           scp -i ~/.ssh/ssh_key \
             server_go/deploy/docker-compose.server.yml \
-            $SSH_USER@$SSH_HOST:/opt/whoknows/docker-compose.yml
+            "$SSH_USER@$SSH_HOST":/opt/whoknows/docker-compose.yml
 
       - name: Blue/green deploy
         run: |
-          ssh -i ~/.ssh/ssh_key $SSH_USER@$SSH_HOST << 'DEPLOY'
+          ssh -i ~/.ssh/ssh_key "$SSH_USER@$SSH_HOST" << 'DEPLOY'
             set -e
             cd /opt/whoknows
 
