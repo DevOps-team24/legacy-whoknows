@@ -1,0 +1,79 @@
+---
+- name: Installer Nginx
+  apt:
+    name: nginx
+    state: present
+    update_cache: true
+
+- name: Installer Certbot
+  apt:
+    name:
+      - certbot
+      - python3-certbot-nginx
+    state: present
+
+- name: Fjern default Nginx site
+  file:
+    path: /etc/nginx/sites-enabled/default
+    state: absent
+
+- name: Tjek om SSL-certifikat allerede findes
+  stat:
+    path: "/etc/letsencrypt/live/{{ domain }}/fullchain.pem"
+  register: ssl_cert
+
+- name: Placer HTTP-only Nginx config (til Certbot-validering)
+  template:
+    src: whoknows-http.conf.j2
+    dest: /etc/nginx/sites-available/whoknows
+    mode: "0644"
+  when: not ssl_cert.stat.exists
+
+- name: Aktiver Nginx site
+  file:
+    src: /etc/nginx/sites-available/whoknows
+    dest: /etc/nginx/sites-enabled/whoknows
+    state: link
+
+- name: Test Nginx config
+  command: nginx -t
+  changed_when: false
+
+- name: Genindlæs Nginx (HTTP-only)
+  systemd:
+    name: nginx
+    state: reloaded
+  when: not ssl_cert.stat.exists
+
+- name: Hent SSL-certifikat med Certbot
+  command: >
+    certbot --nginx
+    -d {{ domain }}
+    --non-interactive
+    --agree-tos
+    -m {{ certbot_email }}
+    --redirect
+  when: not ssl_cert.stat.exists
+
+- name: Placer fuld Nginx config (HTTPS + redirects)
+  template:
+    src: whoknows-full.conf.j2
+    dest: /etc/nginx/sites-available/whoknows
+    mode: "0644"
+
+- name: Test Nginx config (fuld)
+  command: nginx -t
+  changed_when: false
+
+- name: Genindlæs Nginx (fuld config)
+  systemd:
+    name: nginx
+    state: reloaded
+
+- name: Aktiver automatisk certifikat-fornyelse
+  cron:
+    name: "certbot renew"
+    job: "certbot renew --quiet"
+    hour: "3"
+    minute: "30"
+    weekday: "1"

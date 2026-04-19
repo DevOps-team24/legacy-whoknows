@@ -1,0 +1,64 @@
+name: Deploy
+
+on:
+  workflow_call:
+
+jobs:
+  deploy:
+    name: Deploy to production
+    runs-on: ubuntu-latest
+    env:
+      SSH_USER: ${{ secrets.SSH_USER }}
+      SSH_HOST: ${{ secrets.SSH_HOST }}
+
+    steps:
+      - name: Check out repository
+        uses: actions/checkout@v4
+
+      - name: Setup SSH key
+        run: |
+          mkdir -p ~/.ssh
+          echo "${{ secrets.SSH_PRIVATE_KEY }}" > ~/.ssh/ssh_key
+          chmod 600 ~/.ssh/ssh_key
+          ssh-keyscan -H "$SSH_HOST" >> ~/.ssh/known_hosts
+
+      - name: Copy compose file to server
+        run: |
+          scp -i ~/.ssh/ssh_key \
+            server_go/deploy/docker-compose.server.yml \
+            "$SSH_USER@$SSH_HOST":/opt/whoknows/docker-compose.yml
+
+      - name: Blue/green deploy
+        run: |
+          ssh -i ~/.ssh/ssh_key "$SSH_USER@$SSH_HOST" << 'DEPLOY'
+            set -e
+            cd /opt/whoknows
+
+            echo "${{ secrets.CR_PAT }}" | docker login ghcr.io -u "${{ secrets.DOCKER_GITHUB_USERNAME }}" --password-stdin
+
+            ACTIVE=$(cat active 2>/dev/null || echo "blue")
+            if [ "$ACTIVE" = "blue" ]; then NEW=green; NEW_PORT=8081; else NEW=blue; NEW_PORT=8080; fi
+            echo "Active: $ACTIVE -> deploying: $NEW on port $NEW_PORT"
+
+            docker compose pull
+            docker compose up -d "whoknows-$NEW"
+
+            HEALTHY=false
+            for i in $(seq 1 30); do
+              if wget -qO- "http://localhost:$NEW_PORT/" > /dev/null 2>&1; then HEALTHY=true; break; fi
+              sleep 2
+            done
+
+            if [ "$HEALTHY" != "true" ]; then
+              echo "Health check failed — rolling back"
+              docker compose stop "whoknows-$NEW"
+              exit 1
+            fi
+
+            sudo sed -i "s|proxy_pass .*|proxy_pass http://127.0.0.1:$NEW_PORT;|" /etc/nginx/sites-available/whoknows
+            sudo nginx -t && sudo systemctl reload nginx
+
+            docker compose stop "whoknows-$ACTIVE"
+            echo "$NEW" > active
+            echo "Deployed $NEW on port $NEW_PORT"
+          DEPLOY

@@ -1,0 +1,16 @@
+name: Pipeline
+
+on:
+  push:
+    branches: [main]
+  workflow_dispatch:
+
+jobs:
+  deliver:
+    uses: ./.github/workflows/delivery.yml
+    secrets: inherit
+
+  deploy:
+    needs: deliver
+    uses: ./.github/workflows/deploy.yaml
+    secrets: inherit

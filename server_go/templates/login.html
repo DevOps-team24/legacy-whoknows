@@ -1,14 +1,58 @@
 {{ define "body" }}
-  <h2>Log in</h2>
-  <form action="/api/login" method="post">
-    <label for="username">Username</label>
-    <input id="username" name="username" type="text" required>
+<div class="auth-page">
+  <div class="auth-container auth-container--narrow">
 
-    <label for="password">Password</label>
-    <input id="password" name="password" type="password" required>
+    <div class="auth-card">
+      <!-- Decorative background icon -->
+      <div class="auth-card-decoration">
+        <span class="material-symbols-outlined">lock</span>
+      </div>
 
-    <button type="submit">Log in</button>
-  </form>
+      <div class="auth-header">
+        <h1 class="auth-title">Welcome Back</h1>
+        <p class="auth-subtitle auth-subtitle--uppercase">The Digital Curator awaits</p>
+      </div>
+
+      {{ if .Error }}
+        <div class="error-message"><strong>Error:</strong> {{ .Error }}</div>
+      {{ end }}
+
+      <form action="/api/login" method="post">
+        <div class="form-group">
+          <div class="label-row">
+            <label class="form-label" for="username">Username</label>
+          </div>
+          <div class="input-icon-wrapper">
+            <span class="material-symbols-outlined input-icon">alternate_email</span>
+            <input class="form-input form-input-with-icon" id="username" name="username" type="text" placeholder="curator" required>
+          </div>
+        </div>
+
+        <div class="form-group">
+          <div class="label-row">
+            <label class="form-label" for="password">Password</label>
+          </div>
+          <div class="input-icon-wrapper">
+            <span class="material-symbols-outlined input-icon">key</span>
+            <input class="form-input form-input-with-icon" id="password" name="password" type="password" placeholder="••••••••" required>
+          </div>
+        </div>
+
+        <div class="form-submit">
+          <button class="btn-primary" id="login-button" type="submit">
+            <span>Login</span>
+            <span class="material-symbols-outlined" style="font-size:1.125rem;">arrow_forward</span>
+          </button>
+        </div>
+      </form>
+
+      <div class="auth-divider">
+        <p>Don't have an account? <a href="/register">Register</a></p>
+      </div>
+    </div>
+
+  </div>
+</div>
 {{ end }}
 
 {{ template "layout" . }}

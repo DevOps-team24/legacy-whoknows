@@ -1,14 +1,53 @@
 {{ define "body" }}
-  <h2>Register</h2>
-  <form action="/api/register" method="post">
-    <label for="username">Username</label>
-    <input id="username" name="username" type="text" required>
+<div class="auth-page">
+  <div class="auth-container auth-container--wide">
 
-    <label for="password">Password</label>
-    <input id="password" name="password" type="password" required>
+    <div class="auth-header">
+      <h1 class="auth-title" style="font-size:2.5rem;">Join the Collective.</h1>
+      <p class="auth-subtitle">Curate knowledge, contribute insight, and discover what others know.</p>
+    </div>
 
-    <button type="submit">Register</button>
-  </form>
+    <div class="auth-card">
+      {{ if .Error }}
+        <div class="error-message"><strong>Error:</strong> {{ .Error }}</div>
+      {{ end }}
+
+      <form action="/api/register" method="post">
+        <div class="form-group">
+          <label class="form-label" for="username">Username</label>
+          <input class="form-input" id="username" name="username" type="text" placeholder="alexrivers" required>
+        </div>
+
+        <div class="form-group">
+          <label class="form-label" for="email">Email Address</label>
+          <input class="form-input" id="email" name="email" type="email" placeholder="alex@whoknows.ai" required>
+        </div>
+
+        <div class="form-group">
+          <div class="password-grid">
+            <div>
+              <label class="form-label" for="password">Password</label>
+              <input class="form-input" id="password" name="password" type="password" placeholder="••••••••" required>
+            </div>
+            <div>
+              <label class="form-label" for="password2">Confirm</label>
+              <input class="form-input" id="password2" name="password2" type="password" placeholder="••••••••" required>
+            </div>
+          </div>
+        </div>
+
+        <div class="form-submit">
+          <button class="btn-primary" id="register-button" type="submit">Create My Account</button>
+        </div>
+      </form>
+
+      <div class="auth-divider">
+        <p>Already have an account? <a href="/login">Sign in here</a></p>
+      </div>
+    </div>
+
+  </div>
+</div>
 {{ end }}
 
 {{ template "layout" . }}
