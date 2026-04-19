@@ -276,6 +276,9 @@ func (s *Server) ServeRootPage(w http.ResponseWriter, r *http.Request) {
 			http.Error(w, "internal error", http.StatusInternalServerError)
 			return
 		}
+		if len(results) == 0 {
+			s.queueMissedSearch(q, lang)
+		}
 	}
 
 	renderTemplate(w, "search.html", ViewData{
@@ -355,7 +358,74 @@ func (s *Server) Search(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 
+	if len(results) == 0 {
+		s.queueMissedSearch(q, lang)
+	}
+
 	writeJSON(w, http.StatusOK, SearchResponse{Data: results})
+}
+
+// queueMissedSearch sends the search query to the Azure Storage Queue asynchronously
+// so the web scraper can index the missing content. No-op if queue is not configured.
+func (s *Server) queueMissedSearch(q string, lang *string) {
+	if s.Queue == nil {
+		return
+	}
+	langStr := "en"
+	if lang != nil {
+		langStr = *lang
+	}
+	go func() {
+		if err := s.Queue.Send(map[string]string{"query": q, "language": langStr}); err != nil {
+			log.Printf("failed to queue missed search %q: %v", q, err)
+		}
+	}()
+}
+
+// AddPage godoc
+// @Summary Add Page
+// @Description Inserts a scraped page into the database. Used by the Azure Function web scraper.
+// @Tags pages
+// @Accept json
+// @Produce json
+// @Param Authorization header string true "Bearer <api-key>"
+// @Param page body object true "Page data"
+// @Success 201 {object} map[string]string
+// @Failure 400 {object} map[string]string
+// @Failure 401 {object} map[string]string
+// @Router /api/pages [post]
+func (s *Server) AddPage(w http.ResponseWriter, r *http.Request) {
+	if s.ScraperKey == "" || r.Header.Get("Authorization") != "Bearer "+s.ScraperKey {
+		writeJSON(w, http.StatusUnauthorized, map[string]string{"error": "unauthorized"})
+		return
+	}
+
+	var page struct {
+		Title    string `json:"title"`
+		URL      string `json:"url"`
+		Language string `json:"language"`
+		Content  string `json:"content"`
+	}
+	if err := json.NewDecoder(r.Body).Decode(&page); err != nil {
+		writeJSON(w, http.StatusBadRequest, map[string]string{"error": "invalid JSON"})
+		return
+	}
+	if page.Title == "" || page.URL == "" || page.Content == "" {
+		writeJSON(w, http.StatusBadRequest, map[string]string{"error": "title, url and content are required"})
+		return
+	}
+	if page.Language == "" {
+		page.Language = "en"
+	}
+
+	if err := db.InsertPage(s.DB, page.Title, page.URL, page.Language, page.Content); err != nil {
+		log.Printf("insert page failed: %v", err)
+		writeJSON(w, http.StatusInternalServerError, map[string]string{"error": "internal error"})
+		return
+	}
+
+	log.Printf("indexed page: %s", page.Title)
+	writeJSON(w, http.StatusCreated, map[string]string{"message": "page indexed"})
 }
 
 // Register godoc
