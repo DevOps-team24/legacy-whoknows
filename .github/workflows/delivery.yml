@@ -19,7 +19,9 @@ jobs:
       - name: Log in to GHCR
         run: echo "${{ secrets.CR_PAT }}" | docker login ghcr.io -u "${{ secrets.DOCKER_GITHUB_USERNAME }}" --password-stdin
 
-      - name: Build and push image
-        run: |
-          docker build -t ghcr.io/devops-team36/whoknows:latest -f server_go/deploy/Dockerfile server_go
-          docker push ghcr.io/devops-team36/whoknows:latest
+      - name: Build image
+        run: docker build -t ghcr.io/devops-team36/whoknows:latest -f server_go/deploy/Dockerfile server_go
+
+      - name: Push image
+        if: github.event_name != 'pull_request'
+        run: docker push ghcr.io/devops-team36/whoknows:latest
