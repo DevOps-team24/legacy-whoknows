@@ -1,9 +1,8 @@
 import { test, expect } from "@playwright/test";
 
-const uniqueUser = `testuser_${Date.now()}`;
-
 test.describe("Authentication", () => {
-  test("register a new user", async ({ page }) => {
+  test("register a new user redirects to login", async ({ page }) => {
+    const uniqueUser = `testuser_${Date.now()}_${Math.floor(Math.random() * 1e6)}`;
     await page.goto("/register");
 
     await page.fill("#username", uniqueUser);
@@ -12,13 +11,14 @@ test.describe("Authentication", () => {
     await page.fill("#password2", "testpassword123");
     await page.click("#register-button");
 
-    // Server returns JSON with success message
-    await page.waitForURL("**/api/register");
-    await expect(page.locator("body")).toContainText("registered");
+    await expect(page).toHaveURL("/login");
+    await expect(page.locator(".flashes")).toContainText("registered");
   });
 
-  test("login and logout", async ({ page }) => {
-    // Register first via the form
+  test("login redirects to home, logout redirects back to home", async ({
+    page,
+  }) => {
+    // Register first
     const user = `logintest_${Date.now()}`;
     await page.goto("/register");
     await page.fill("#username", user);
@@ -26,39 +26,31 @@ test.describe("Authentication", () => {
     await page.fill("#password", "testpassword123");
     await page.fill("#password2", "testpassword123");
     await page.click("#register-button");
-    await page.waitForURL("**/api/register");
+    await expect(page).toHaveURL("/login");
 
-    // Login via the form
-    await page.goto("/login");
+    // Login
     await page.fill("#username", user);
     await page.fill("#password", "testpassword123");
     await page.click("#login-button");
 
-    // Server returns JSON success
-    await page.waitForURL("**/api/login");
-    await expect(page.locator("body")).toContainText("logged in");
-
-    // Navigate to home — should see logout link
-    await page.goto("/");
+    // Should land on the home page, logged in
+    await expect(page).toHaveURL("/");
     await expect(page.locator("#nav-logout")).toBeVisible();
     await expect(page.locator("#nav-logout")).toContainText(user);
 
-    // Logout
+    // Logout → home, logged out
     await page.click("#nav-logout");
-    await expect(page.locator("body")).toContainText("logged out");
-
-    // Navigate home — should see login link again
-    await page.goto("/");
+    await expect(page).toHaveURL("/");
     await expect(page.locator("#nav-login")).toBeVisible();
   });
 
-  test("login with wrong password shows error", async ({ page }) => {
+  test("login with wrong password flashes an error", async ({ page }) => {
     await page.goto("/login");
     await page.fill("#username", "nonexistent");
     await page.fill("#password", "wrongpassword");
     await page.click("#login-button");
 
-    await page.waitForURL("**/api/login");
-    await expect(page.locator("body")).toContainText("Invalid");
+    await expect(page).toHaveURL("/login");
+    await expect(page.locator(".flashes")).toContainText("Invalid");
   });
 });
