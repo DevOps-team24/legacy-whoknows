@@ -11,26 +11,6 @@
     - "{{ app_dir }}/data"
     - "{{ app_dir }}/logs"
 
-- name: Kopier app-kilde til server
-  synchronize:
-    src: "{{ playbook_dir }}/../../"
-    dest: "{{ app_dir }}/"
-    delete: false
-    rsync_opts:
-      - "--exclude=.git"
-      - "--exclude=*.db"
-      - "--exclude=whoknows.db"
-  become: true
-  become_user: root
-  # Efter sync: sæt ejer så deploy-brugeren kan skrive ved næste deploy
-- name: Sæt ejerskab på app_dir
-  file:
-    path: "{{ app_dir }}"
-    state: directory
-    owner: "{{ ansible_user }}"
-    group: "{{ ansible_user }}"
-    recurse: true
-
 - name: Placer docker-compose.yml
   template:
     src: docker-compose.yml.j2
@@ -47,13 +27,35 @@
     group: "{{ ansible_user }}"
     mode: "0600"
 
-- name: Byg og start containere (kør som deploy-bruger)
-  shell: "cd {{ app_dir }} && sg docker -c 'docker compose build --no-cache && docker compose up -d'"
+- name: Opret active-fil (default blue)
+  copy:
+    content: "blue"
+    dest: "{{ app_dir }}/active"
+    owner: "{{ ansible_user }}"
+    group: "{{ ansible_user }}"
+    mode: "0644"
+    force: false
+
+- name: Login til GHCR
+  shell: echo "{{ lookup('env', 'CR_PAT') }}" | docker login ghcr.io -u devops-team36 --password-stdin
+  become: false
+  args:
+    executable: /bin/bash
+  no_log: true
+
+- name: Pull image fra GHCR
+  shell: "cd {{ app_dir }} && sg docker -c 'docker compose pull'"
   become: false
   args:
     executable: /bin/bash
 
-- name: Vent på at appen i containeren svarer
+- name: Start whoknows-blue
+  shell: "cd {{ app_dir }} && sg docker -c 'docker compose up -d whoknows-blue'"
+  become: false
+  args:
+    executable: /bin/bash
+
+- name: Vent på at appen svarer
   wait_for:
     port: 8080
     host: 127.0.0.1
@@ -63,7 +65,7 @@
 - name: Kør database-migration hvis database er tom
   shell: |
     if [ ! -f {{ app_dir }}/data/whoknows.db ]; then
-      cd {{ app_dir }} && sg docker -c 'docker compose exec -T whoknows sh -c "sqlite3 /app/data/whoknows.db < /app/migrations/001_init.sql"'
+      cd {{ app_dir }} && sg docker -c 'docker compose exec -T whoknows-blue sh -c "sqlite3 /app/data/whoknows.db < /app/migrations/001_init.sql"'
     fi
   args:
     executable: /bin/bash

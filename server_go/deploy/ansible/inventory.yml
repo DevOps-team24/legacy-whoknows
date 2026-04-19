@@ -8,7 +8,7 @@ all:
     app_port: 8080
     app_dir: "/opt/{{ app_name }}"
     domain: huw.dk
-    server_ip: "20.240.47.24"
+    server_ip: "104.248.138.83"
     certbot_email: "hannibal@ussing.com"
     ansible_user: deploy
 
@@ -16,4 +16,4 @@ all:
     production:
       hosts:
         whoknows-vm:
-          ansible_host: 20.240.47.24
+          ansible_host: 104.248.138.83
