@@ -1,24 +1,32 @@
-# Statisk docker-compose til serveren (bruges af deploy.ps1 og manuel deploy)
 services:
-  whoknows:
-    build:
-      context: .
-      dockerfile: deploy/Dockerfile
-    image: whoknows:latest
-    container_name: whoknows
+  whoknows-blue:
+    image: ghcr.io/devops-team36/whoknows:latest
+    container_name: whoknows-blue
     restart: unless-stopped
     ports:
-      - "8080:8080"
+      - "127.0.0.1:8080:8080"
     volumes:
       - /opt/whoknows/data:/app/data
-      - /opt/whoknows/logs:/app/logs
-    environment:
-      - WHOKNOWS_DB_PATH=/app/data/whoknows.db
-      - WHOKNOWS_PORT=8080
-      - WHOKNOWS_ADDR=0.0.0.0
+    env_file: .env
     healthcheck:
       test: ["CMD", "wget", "--quiet", "--tries=1", "--spider", "http://localhost:8080/"]
-      interval: 30s
-      timeout: 10s
+      interval: 10s
+      timeout: 5s
       retries: 3
-      start_period: 40s
+      start_period: 20s
+
+  whoknows-green:
+    image: ghcr.io/devops-team36/whoknows:latest
+    container_name: whoknows-green
+    restart: unless-stopped
+    ports:
+      - "127.0.0.1:8081:8080"
+    volumes:
+      - /opt/whoknows/data:/app/data
+    env_file: .env
+    healthcheck:
+      test: ["CMD", "wget", "--quiet", "--tries=1", "--spider", "http://localhost:8080/"]
+      interval: 10s
+      timeout: 5s
+      retries: 3
+      start_period: 20s
