@@ -171,8 +171,10 @@ server_go/tmp/
 # Playwright
 server_go/e2e/node_modules/
 server_go/e2e/playwright-report/
+
 server_go/e2e/test-results/
 
 # Editor / OS cruft
 *.swp
 *:Zone.Identifier
+

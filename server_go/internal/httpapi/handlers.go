@@ -106,6 +106,15 @@ func (s *Server) getFlashes(w http.ResponseWriter, r *http.Request) []string {
 	return out
 }
 
+// flashAndRedirect stashes a message in the session and redirects to `to`.
+// The message renders via layout.html's `.Flashes` on the next page load.
+func (s *Server) flashAndRedirect(w http.ResponseWriter, r *http.Request, msg, to string) {
+	sess, _ := s.Sessions.Get(r, SessionName)
+	sess.AddFlash(msg)
+	_ = sess.Save(r, w)
+	http.Redirect(w, r, to, http.StatusSeeOther)
+}
+
 var (
 	// per-page template cache
 	pageTemplates   = map[string]*template.Template{}
@@ -204,18 +213,6 @@ func writeJSON(w http.ResponseWriter, status int, payload any) {
 	w.Header().Set("Content-Type", "application/json")
 	w.WriteHeader(status)
 	_ = json.NewEncoder(w).Encode(payload)
-}
-
-func asPtr[T any](v T) *T {
-	return &v
-}
-
-func writeAuth(w http.ResponseWriter, statusCode int, message string) {
-	msg := message
-	writeJSON(w, http.StatusOK, AuthResponse{
-		StatusCode: asPtr(statusCode),
-		Message:    &msg,
-	})
 }
 
 func writeLoginRegisterValidationError(w http.ResponseWriter, field string) {
@@ -377,7 +374,7 @@ func (s *Server) Register(w http.ResponseWriter, r *http.Request) {
 	}
 
 	if currentUser(r) != nil {
-		writeAuth(w, http.StatusSeeOther, "Already logged in")
+		http.Redirect(w, r, "/", http.StatusSeeOther)
 		return
 	}
 
@@ -402,24 +399,24 @@ func (s *Server) Register(w http.ResponseWriter, r *http.Request) {
 			formError = "The username is already taken"
 		} else if !errors.Is(err, db.ErrUserNotFound) {
 			log.Printf("register username lookup failed: %v", err)
-			writeAuth(w, http.StatusInternalServerError, "internal error")
+			s.flashAndRedirect(w, r, "Internal error, please try again", "/register")
 			return
 		}
 	}
 
 	if formError != "" {
-		writeAuth(w, http.StatusBadRequest, formError)
+		s.flashAndRedirect(w, r, formError, "/register")
 		return
 	}
 
 	hash := auth.HashPassword(password)
 	if err := db.CreateUser(r.Context(), s.DB, username, email, hash); err != nil {
 		log.Printf("register create user failed: %v", err)
-		writeAuth(w, http.StatusInternalServerError, "internal error")
+		s.flashAndRedirect(w, r, "Internal error, please try again", "/register")
 		return
 	}
 
-	writeAuth(w, http.StatusOK, "You were successfully registered and can login now")
+	s.flashAndRedirect(w, r, "You were successfully registered and can login now", "/login")
 }
 
 // Login godoc
@@ -439,7 +436,7 @@ func (s *Server) Login(w http.ResponseWriter, r *http.Request) {
 	}
 
 	if currentUser(r) != nil {
-		writeAuth(w, http.StatusSeeOther, "Already logged in")
+		http.Redirect(w, r, "/", http.StatusSeeOther)
 		return
 	}
 
@@ -449,16 +446,16 @@ func (s *Server) Login(w http.ResponseWriter, r *http.Request) {
 	user, err := db.GetUserByUsername(r.Context(), s.DB, username)
 	if err != nil {
 		if errors.Is(err, db.ErrUserNotFound) {
-			writeAuth(w, http.StatusUnauthorized, "Invalid username")
+			s.flashAndRedirect(w, r, "Invalid username", "/login")
 			return
 		}
 		log.Printf("login username lookup failed: %v", err)
-		writeAuth(w, http.StatusInternalServerError, "internal error")
+		s.flashAndRedirect(w, r, "Internal error, please try again", "/login")
 		return
 	}
 
 	if !auth.VerifyPassword(user.PasswordHash, password) {
-		writeAuth(w, http.StatusUnauthorized, "Invalid password")
+		s.flashAndRedirect(w, r, "Invalid password", "/login")
 		return
 	}
 
@@ -466,7 +463,7 @@ func (s *Server) Login(w http.ResponseWriter, r *http.Request) {
 	sess.Values["user_id"] = user.ID
 	_ = sess.Save(r, w)
 
-	writeAuth(w, http.StatusOK, "You were logged in")
+	http.Redirect(w, r, "/", http.StatusSeeOther)
 }
 
 // Logout godoc
@@ -481,9 +478,5 @@ func (s *Server) Logout(w http.ResponseWriter, r *http.Request) {
 	delete(sess.Values, "user_id")
 	_ = sess.Save(r, w)
 
-	statusCode := http.StatusOK
-	msg := "You were logged out"
-	w.Header().Set("Content-Type", "application/json")
-	w.WriteHeader(http.StatusOK)
-	_ = json.NewEncoder(w).Encode(AuthResponse{StatusCode: &statusCode, Message: &msg})
+	http.Redirect(w, r, "/", http.StatusSeeOther)
 }
