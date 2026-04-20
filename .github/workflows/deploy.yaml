@@ -36,11 +36,14 @@ jobs:
 
             echo "${{ secrets.CR_PAT }}" | docker login ghcr.io -u "${{ secrets.DOCKER_GITHUB_USERNAME }}" --password-stdin
 
+            # Ensure Postgres is up (idempotent — only starts if not already running)
+            docker compose up -d postgres
+
             ACTIVE=$(cat active 2>/dev/null || echo "blue")
             if [ "$ACTIVE" = "blue" ]; then NEW=green; NEW_PORT=8081; else NEW=blue; NEW_PORT=8080; fi
             echo "Active: $ACTIVE -> deploying: $NEW on port $NEW_PORT"
 
-            docker compose pull
+            docker compose pull "whoknows-$NEW"
             docker compose up -d "whoknows-$NEW"
 
             HEALTHY=false

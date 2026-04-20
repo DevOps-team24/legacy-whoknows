@@ -1,47 +1,20 @@
 package db
 
 import (
-	"database/sql"
+	"context"
 	"errors"
 	"testing"
-
-	_ "modernc.org/sqlite"
 )
 
-func setupUsersDB(t *testing.T) *sql.DB {
-	t.Helper()
-	conn, err := sql.Open("sqlite", ":memory:")
-	if err != nil {
-		t.Fatal(err)
-	}
-	_, err = conn.Exec(`
-		CREATE TABLE users (
-			id INTEGER PRIMARY KEY AUTOINCREMENT,
-			username TEXT NOT NULL UNIQUE,
-			email TEXT NOT NULL UNIQUE,
-			password TEXT NOT NULL
-		);
-	`)
-	if err != nil {
-		t.Fatal(err)
-	}
-	return conn
-}
-
 func TestCreateUser_And_GetByUsername(t *testing.T) {
-	conn := setupUsersDB(t)
-	defer func() {
-		if err := conn.Close(); err != nil {
-			t.Fatalf("close db: %v", err)
-		}
-	}()
+	ctx := context.Background()
+	pool := newTestPool(t)
 
-	err := CreateUser(conn, "alice", "alice@example.com", "abc123hash")
-	if err != nil {
+	if err := CreateUser(ctx, pool, "alice", "alice@example.com", "abc123hash"); err != nil {
 		t.Fatal(err)
 	}
 
-	u, err := GetUserByUsername(conn, "alice")
+	u, err := GetUserByUsername(ctx, pool, "alice")
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -57,35 +30,29 @@ func TestCreateUser_And_GetByUsername(t *testing.T) {
 }
 
 func TestGetUserByUsername_NotFound(t *testing.T) {
-	conn := setupUsersDB(t)
-	defer func() {
-		if err := conn.Close(); err != nil {
-			t.Fatalf("close db: %v", err)
-		}
-	}()
+	ctx := context.Background()
+	pool := newTestPool(t)
 
-	_, err := GetUserByUsername(conn, "nobody")
+	_, err := GetUserByUsername(ctx, pool, "nobody")
 	if !errors.Is(err, ErrUserNotFound) {
 		t.Errorf("expected ErrUserNotFound, got %v", err)
 	}
 }
 
 func TestGetUserByID(t *testing.T) {
-	conn := setupUsersDB(t)
-	defer func() {
-		if err := conn.Close(); err != nil {
-			t.Fatalf("close db: %v", err)
-		}
-	}()
+	ctx := context.Background()
+	pool := newTestPool(t)
 
-	_ = CreateUser(conn, "bob", "bob@example.com", "somehash")
+	if err := CreateUser(ctx, pool, "bob", "bob@example.com", "somehash"); err != nil {
+		t.Fatal(err)
+	}
 
-	u, err := GetUserByUsername(conn, "bob")
+	u, err := GetUserByUsername(ctx, pool, "bob")
 	if err != nil {
 		t.Fatal(err)
 	}
 
-	u2, err := GetUserByID(conn, u.ID)
+	u2, err := GetUserByID(ctx, pool, u.ID)
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -95,30 +62,23 @@ func TestGetUserByID(t *testing.T) {
 }
 
 func TestGetUserByID_NotFound(t *testing.T) {
-	conn := setupUsersDB(t)
-	defer func() {
-		if err := conn.Close(); err != nil {
-			t.Fatalf("close db: %v", err)
-		}
-	}()
+	ctx := context.Background()
+	pool := newTestPool(t)
 
-	_, err := GetUserByID(conn, 9999)
+	_, err := GetUserByID(ctx, pool, 9999)
 	if !errors.Is(err, ErrUserNotFound) {
 		t.Errorf("expected ErrUserNotFound, got %v", err)
 	}
 }
 
 func TestCreateUser_DuplicateUsername(t *testing.T) {
-	conn := setupUsersDB(t)
-	defer func() {
-		if err := conn.Close(); err != nil {
-			t.Fatalf("close db: %v", err)
-		}
-	}()
+	ctx := context.Background()
+	pool := newTestPool(t)
 
-	_ = CreateUser(conn, "charlie", "charlie@example.com", "hash1")
-	err := CreateUser(conn, "charlie", "other@example.com", "hash2")
-	if err == nil {
+	if err := CreateUser(ctx, pool, "charlie", "charlie@example.com", "hash1"); err != nil {
+		t.Fatal(err)
+	}
+	if err := CreateUser(ctx, pool, "charlie", "other@example.com", "hash2"); err == nil {
 		t.Error("expected error for duplicate username, got nil")
 	}
 }

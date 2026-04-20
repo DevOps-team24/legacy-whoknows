@@ -76,7 +76,7 @@ func (s *Server) UserFromSession(next http.Handler) http.Handler {
 			return
 		}
 
-		row, err := db.GetUserByID(s.DB, userID)
+		row, err := db.GetUserByID(r.Context(), s.DB, userID)
 		if err != nil {
 			next.ServeHTTP(w, r)
 			return
@@ -105,6 +105,15 @@ func (s *Server) getFlashes(w http.ResponseWriter, r *http.Request) []string {
 		out[i], _ = v.(string)
 	}
 	return out
+}
+
+// flashAndRedirect stashes a message in the session and redirects to `to`.
+// The message renders via layout.html's `.Flashes` on the next page load.
+func (s *Server) flashAndRedirect(w http.ResponseWriter, r *http.Request, msg, to string) {
+	sess, _ := s.Sessions.Get(r, SessionName)
+	sess.AddFlash(msg)
+	_ = sess.Save(r, w)
+	http.Redirect(w, r, to, http.StatusSeeOther)
 }
 
 var (
@@ -207,18 +216,6 @@ func writeJSON(w http.ResponseWriter, status int, payload any) {
 	_ = json.NewEncoder(w).Encode(payload)
 }
 
-func asPtr[T any](v T) *T {
-	return &v
-}
-
-func writeAuth(w http.ResponseWriter, statusCode int, message string) {
-	msg := message
-	writeJSON(w, http.StatusOK, AuthResponse{
-		StatusCode: asPtr(statusCode),
-		Message:    &msg,
-	})
-}
-
 func writeLoginRegisterValidationError(w http.ResponseWriter, field string) {
 	writeJSON(w, http.StatusUnprocessableEntity, HTTPValidationError{
 		Detail: []ValidationError{
@@ -272,7 +269,7 @@ func (s *Server) ServeRootPage(w http.ResponseWriter, r *http.Request) {
 	var results []map[string]any
 	if q != "" {
 		var err error
-		results, err = db.SearchPages(s.DB, q, lang)
+		results, err = db.SearchPages(r.Context(), s.DB, q, lang)
 		if err != nil {
 			http.Error(w, "internal error", http.StatusInternalServerError)
 			return
@@ -352,7 +349,7 @@ func (s *Server) Search(w http.ResponseWriter, r *http.Request) {
 		lang = &langParam
 	}
 
-	results, err := db.SearchPages(s.DB, q, lang)
+	results, err := db.SearchPages(r.Context(), s.DB, q, lang)
 	if err != nil {
 		log.Printf("search query failed: %v", err)
 		writeJSON(w, http.StatusOK, SearchResponse{Data: []map[string]any{}})
@@ -428,7 +425,7 @@ func (s *Server) AddPage(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 
-	if err := db.InsertPage(s.DB, page.Title, page.URL, page.Language, page.Content); err != nil {
+	if err := db.InsertPage(r.Context(), s.DB, page.Title, page.URL, page.Language, page.Content); err != nil {
 		log.Printf("insert page failed: %v", err)
 		writeJSON(w, http.StatusInternalServerError, map[string]string{"error": "internal error"})
 		return
@@ -457,7 +454,7 @@ func (s *Server) Register(w http.ResponseWriter, r *http.Request) {
 	}
 
 	if currentUser(r) != nil {
-		writeAuth(w, http.StatusSeeOther, "Already logged in")
+		http.Redirect(w, r, "/", http.StatusSeeOther)
 		return
 	}
 
@@ -477,29 +474,29 @@ func (s *Server) Register(w http.ResponseWriter, r *http.Request) {
 	case password != password2:
 		formError = "The two passwords do not match"
 	default:
-		_, err := db.GetUserByUsername(s.DB, username)
+		_, err := db.GetUserByUsername(r.Context(), s.DB, username)
 		if err == nil {
 			formError = "The username is already taken"
 		} else if !errors.Is(err, db.ErrUserNotFound) {
 			log.Printf("register username lookup failed: %v", err)
-			writeAuth(w, http.StatusInternalServerError, "internal error")
+			s.flashAndRedirect(w, r, "Internal error, please try again", "/register")
 			return
 		}
 	}
 
 	if formError != "" {
-		writeAuth(w, http.StatusBadRequest, formError)
+		s.flashAndRedirect(w, r, formError, "/register")
 		return
 	}
 
 	hash := auth.HashPassword(password)
-	if err := db.CreateUser(s.DB, username, email, hash); err != nil {
+	if err := db.CreateUser(r.Context(), s.DB, username, email, hash); err != nil {
 		log.Printf("register create user failed: %v", err)
-		writeAuth(w, http.StatusInternalServerError, "internal error")
+		s.flashAndRedirect(w, r, "Internal error, please try again", "/register")
 		return
 	}
 
-	writeAuth(w, http.StatusOK, "You were successfully registered and can login now")
+	s.flashAndRedirect(w, r, "You were successfully registered and can login now", "/login")
 }
 
 // Login godoc
@@ -519,26 +516,26 @@ func (s *Server) Login(w http.ResponseWriter, r *http.Request) {
 	}
 
 	if currentUser(r) != nil {
-		writeAuth(w, http.StatusSeeOther, "Already logged in")
+		http.Redirect(w, r, "/", http.StatusSeeOther)
 		return
 	}
 
 	username := strings.TrimSpace(r.FormValue("username"))
 	password := r.FormValue("password")
 
-	user, err := db.GetUserByUsername(s.DB, username)
+	user, err := db.GetUserByUsername(r.Context(), s.DB, username)
 	if err != nil {
 		if errors.Is(err, db.ErrUserNotFound) {
-			writeAuth(w, http.StatusUnauthorized, "Invalid username")
+			s.flashAndRedirect(w, r, "Invalid username", "/login")
 			return
 		}
 		log.Printf("login username lookup failed: %v", err)
-		writeAuth(w, http.StatusInternalServerError, "internal error")
+		s.flashAndRedirect(w, r, "Internal error, please try again", "/login")
 		return
 	}
 
 	if !auth.VerifyPassword(user.PasswordHash, password) {
-		writeAuth(w, http.StatusUnauthorized, "Invalid password")
+		s.flashAndRedirect(w, r, "Invalid password", "/login")
 		return
 	}
 
@@ -546,7 +543,7 @@ func (s *Server) Login(w http.ResponseWriter, r *http.Request) {
 	sess.Values["user_id"] = user.ID
 	_ = sess.Save(r, w)
 
-	writeAuth(w, http.StatusOK, "You were logged in")
+	http.Redirect(w, r, "/", http.StatusSeeOther)
 }
 
 // Logout godoc
@@ -561,9 +558,5 @@ func (s *Server) Logout(w http.ResponseWriter, r *http.Request) {
 	delete(sess.Values, "user_id")
 	_ = sess.Save(r, w)
 
-	statusCode := http.StatusOK
-	msg := "You were logged out"
-	w.Header().Set("Content-Type", "application/json")
-	w.WriteHeader(http.StatusOK)
-	_ = json.NewEncoder(w).Encode(AuthResponse{StatusCode: &statusCode, Message: &msg})
+	http.Redirect(w, r, "/", http.StatusSeeOther)
 }

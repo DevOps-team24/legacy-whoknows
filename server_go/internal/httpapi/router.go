@@ -1,11 +1,11 @@
 package httpapi
 
 import (
-	"database/sql"
 	"net/http"
 
 	"github.com/go-chi/chi/v5"
 	"github.com/gorilla/sessions"
+	"github.com/jackc/pgx/v5/pgxpool"
 	httpSwagger "github.com/swaggo/http-swagger"
 
 	"whoknows_variations/server_go/internal/queue"
@@ -14,10 +14,10 @@ import (
 const SessionName = "session"
 
 type Server struct {
-	DB         *sql.DB
+	DB         *pgxpool.Pool
 	Sessions   *sessions.CookieStore
-	Queue      *queue.Client // nil if AZURE_QUEUE_SAS_URL is not set
-	ScraperKey string        // API key for POST /api/pages (WHOKNOWS_SCRAPER_API_KEY)
+	Queue      *queue.Client
+	ScraperKey string
 }
 
 func NewRouter(s *Server) http.Handler {

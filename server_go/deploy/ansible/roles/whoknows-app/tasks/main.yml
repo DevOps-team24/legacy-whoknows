@@ -8,7 +8,7 @@
     mode: "0755"
   loop:
     - "{{ app_dir }}"
-    - "{{ app_dir }}/data"
+    - "{{ app_dir }}/pgdata"
     - "{{ app_dir }}/logs"
 
 - name: Placer docker-compose.yml
@@ -43,8 +43,14 @@
     executable: /bin/bash
   no_log: true
 
-- name: Pull image fra GHCR
+- name: Pull images fra GHCR
   shell: "cd {{ app_dir }} && sg docker -c 'docker compose pull'"
+  become: false
+  args:
+    executable: /bin/bash
+
+- name: Start postgres
+  shell: "cd {{ app_dir }} && sg docker -c 'docker compose up -d postgres'"
   become: false
   args:
     executable: /bin/bash
@@ -61,14 +67,3 @@
     host: 127.0.0.1
     delay: 5
     timeout: 90
-
-- name: Kør database-migration hvis database er tom
-  shell: |
-    if [ ! -f {{ app_dir }}/data/whoknows.db ]; then
-      cd {{ app_dir }} && sg docker -c 'docker compose exec -T whoknows-blue sh -c "sqlite3 /app/data/whoknows.db < /app/migrations/001_init.sql"'
-    fi
-  args:
-    executable: /bin/bash
-  become: false
-  changed_when: false
-  ignore_errors: true

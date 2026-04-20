@@ -8,20 +8,20 @@ Alle i gruppen deployer som den fælles bruger **deploy** via SSH-nøgler. Der e
 
 ## Oversigt
 
-| Komponent | Beskrivelse |
-|-----------|-------------|
-| **Go-app** | Lytter på `127.0.0.1:8080` (kun internt) |
-| **Docker** | Bygger og kører Go-appen via `docker compose` |
-| **Nginx** | Reverse proxy på port 80/443, HTTPS via Let's Encrypt |
-| **Database** | SQLite-fil i `/opt/whoknows/data/whoknows.db` |
+| Komponent    | Beskrivelse                                           |
+| ------------ | ----------------------------------------------------- |
+| **Go-app**   | Lytter på `127.0.0.1:8080` (kun internt)              |
+| **Docker**   | Bygger og kører Go-appen via `docker compose`         |
+| **Nginx**    | Reverse proxy på port 80/443, HTTPS via Let's Encrypt |
+| **Database** | PostgreSQL 17, data i volume `/opt/whoknows/pgdata`   |
 
 ### Filstruktur
 
-```
+```text
 deploy/
 ├── Dockerfile                  # Go-image (multi-stage build)
 ├── docker-compose.server.yml   # Compose-fil brugt på serveren
-├── env.server                  # Env-vars kopieret som .env
+├── env.example                 # Reference for env-vars (den rigtige .env skrives af deploy-workflow fra GitHub Secrets)
 ├── README.md                   # Denne fil
 └── ansible/
     ├── ansible.cfg
@@ -42,6 +42,7 @@ Disse trin er allerede udført på `20.240.47.24`. De står her som reference, h
 ### 1. Manuelle trin (før Ansible)
 
 **Azure-porte** – åbn i Azure Portal → VM → Networking:
+
 - **Port 22** (SSH), **80** (HTTP), **443** (HTTPS): Allow (TCP).
 
 **DNS** – peg domænet (`huw.dk`) til serverens IP via en A-record.
@@ -67,19 +68,24 @@ cd path/til/legacy-whoknows/server_go
 ansible-playbook deploy/ansible/playbook.yml
 ```
 
-### 3. Upload database
+### 3. Importer eksisterende SQLite-data (valgfrit)
+
+Hvis I har en legacy `whoknows.db`-fil I vil migrere:
 
 ```bash
-scp whoknows.db deploy@20.240.47.24:/opt/whoknows/data/whoknows.db
-ssh deploy@20.240.47.24 "cd /opt/whoknows && docker compose restart whoknows"
+# Fra din egen maskine med Postgres DSN mod produktion (via SSH-tunnel e.l.)
+export DATABASE_URL="postgres://user:pass@host:5432/whoknows?sslmode=disable"
+go run ./cmd/import-sqlite -sqlite path/to/whoknows.db
 ```
+
+Goose kører automatisk på server-start, så skemaet er allerede på plads når import køres.
 
 ### Resultat
 
-- **https://huw.dk/** – virker med grøn lås.
-- **http://huw.dk/** – omdirigerer til **https://huw.dk/**.
-- **http://20.240.47.24** – omdirigerer til **https://huw.dk**.
-- **https://20.240.47.24** – omdirigerer til **https://huw.dk**.
+- **<https://huw.dk/>** – virker med grøn lås.
+- **<http://huw.dk/>** – omdirigerer til **<https://huw.dk/>**.
+- **<http://20.240.47.24>** – omdirigerer til **<https://huw.dk>**.
+- **<https://20.240.47.24>** – omdirigerer til **<https://huw.dk>**.
 
 ---
 
@@ -109,7 +115,7 @@ Playbooken (`deploy/ansible/playbook.yml`) kører tre roller:
 2. **whoknows-app** – Opretter mapper, kopierer kildekode, templater `docker-compose.yml` og `.env`, bygger image og starter containeren.
 3. **nginx** – Installerer Nginx og Certbot, placerer site-config med HTTPS og IP-redirect, henter SSL-certifikat fra Let's Encrypt.
 
-Database-filen (`whoknows.db`) overskrives **ikke** – den ligger i `/opt/whoknows/data/` og bevares mellem deploys.
+Postgres-data ligger i volumen `/opt/whoknows/pgdata/` og bevares mellem deploys. `goose` kører automatisk ved app-start og anvender alle nye migrations fra `server_go/migrations/`.
 
 ### Konfiguration
 
@@ -141,38 +147,43 @@ ansible-playbook deploy/ansible/playbook.yml --check
 
 ---
 
-## Database
+## Database (PostgreSQL + goose)
 
-### Upload jeres egen whoknows.db
+### Credentials
 
-Appen læser databasen fra `/opt/whoknows/data/whoknows.db`. I kan erstatte den:
+Ingen creds ligger i repoet. `.env` på serveren skrives én gang af Ansible via `env.j2`, som bruger env-var-lookups:
+
+- `POSTGRES_USER`, `POSTGRES_PASSWORD`, `POSTGRES_DB` – eksporteres som env-vars før `ansible-playbook` køres.
+- `DATABASE_URL` genereres automatisk i `env.j2` ud fra ovenstående.
+
+### Migrations
+
+Migrations ligger i `server_go/migrations/` i goose-format. Ved server-start kører appen `goose.Up(...)` mod den aktive database. For at tilføje en ny migration lokalt:
 
 ```bash
-# Fra din PC – kopier database til serveren
-scp whoknows.db deploy@20.240.47.24:/opt/whoknows/data/whoknows.db
-
-# Genstart containeren
-ssh deploy@20.240.47.24 "cd /opt/whoknows && docker compose restart whoknows"
+cd server_go
+goose -dir migrations create add_noget_nyt sql
+# rediger filen, commit + push — CI validerer den, deploy kører den automatisk
 ```
 
-### Backup
+### Lokal dev-DB
 
 ```bash
-scp deploy@20.240.47.24:/opt/whoknows/data/whoknows.db whoknows-backup.db
+cd server_go
+cp .env.example .env   # rediger med dine lokale values
+docker compose -f docker-compose.dev.yml up -d
 ```
 
-### Kør migration (hvis tabeller mangler)
+### Backup på produktion
 
 ```bash
-ssh deploy@20.240.47.24
-cd /opt/whoknows
-docker compose exec whoknows sh -c "sqlite3 /app/data/whoknows.db < /app/migrations/001_init.sql"
+ssh deploy@<server-ip> "docker exec whoknows-postgres pg_dump -U <user> <db>" > whoknows-$(date +%F).sql
 ```
 
 ### Tjek logs
 
 ```bash
-ssh deploy@20.240.47.24 "cd /opt/whoknows && docker compose logs -f whoknows"
+ssh deploy@<server-ip> "cd /opt/whoknows && docker compose logs -f whoknows-blue whoknows-green postgres"
 ```
 
 ---
