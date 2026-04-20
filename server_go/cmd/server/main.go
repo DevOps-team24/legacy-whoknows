@@ -16,6 +16,7 @@ import (
 	_ "whoknows_variations/server_go/docs"
 	"whoknows_variations/server_go/internal/db"
 	"whoknows_variations/server_go/internal/httpapi"
+	"whoknows_variations/server_go/internal/queue"
 )
 
 // @title WhoKnows API
@@ -47,7 +48,25 @@ func main() {
 	}
 	store := sessions.NewCookieStore([]byte(secretKey))
 
-	s := &httpapi.Server{DB: pool, Sessions: store}
+	var queueClient *queue.Client
+	if queueSASURL := os.Getenv("AZURE_QUEUE_SAS_URL"); queueSASURL != "" {
+		queueClient = queue.New(queueSASURL)
+		log.Printf("Azure Storage Queue configured")
+	} else {
+		log.Printf("AZURE_QUEUE_SAS_URL not set — missed searches will not be queued")
+	}
+
+	scraperKey := os.Getenv("WHOKNOWS_SCRAPER_API_KEY")
+	if scraperKey == "" {
+		log.Printf("WHOKNOWS_SCRAPER_API_KEY not set — POST /api/pages will return 401")
+	}
+
+	s := &httpapi.Server{
+		DB:         pool,
+		Sessions:   store,
+		Queue:      queueClient,
+		ScraperKey: scraperKey,
+	}
 	router := httpapi.NewRouter(s)
 
 	port := os.Getenv("WHOKNOWS_PORT")
