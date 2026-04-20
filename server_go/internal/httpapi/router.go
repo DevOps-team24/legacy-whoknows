@@ -1,18 +1,18 @@
 package httpapi
 
 import (
-	"database/sql"
 	"net/http"
 
 	"github.com/go-chi/chi/v5"
 	"github.com/gorilla/sessions"
+	"github.com/jackc/pgx/v5/pgxpool"
 	httpSwagger "github.com/swaggo/http-swagger"
 )
 
 const SessionName = "session"
 
 type Server struct {
-	DB       *sql.DB
+	DB       *pgxpool.Pool
 	Sessions *sessions.CookieStore
 }
 

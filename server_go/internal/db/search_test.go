@@ -1,46 +1,38 @@
 package db
 
 import (
-	"database/sql"
+	"context"
 	"testing"
 
-	_ "modernc.org/sqlite"
+	"github.com/jackc/pgx/v5/pgxpool"
 )
 
-func setupTestDB(t *testing.T) *sql.DB {
+func seedPages(t *testing.T, pool *pgxpool.Pool) {
 	t.Helper()
-	conn, err := sql.Open("sqlite", ":memory:")
-	if err != nil {
-		t.Fatal(err)
+	ctx := context.Background()
+	rows := []struct {
+		title, url, language, content string
+	}{
+		{"Go Programming", "/go", "en", "Learn Go"},
+		{"Python Programming", "/python", "en", "Learn Python"},
+		{"Dansk Søgning", "/dansk", "da", "Søg efter noget"},
 	}
-	_, err = conn.Exec(`
-		CREATE TABLE pages (
-			title TEXT PRIMARY KEY,
-			url TEXT NOT NULL UNIQUE,
-			language TEXT NOT NULL DEFAULT 'en',
-			last_updated TIMESTAMP,
-			content TEXT NOT NULL
-		);
-		INSERT INTO pages (title, url, language, content) VALUES
-			('Go Programming', '/go', 'en', 'Learn Go'),
-			('Python Programming', '/python', 'en', 'Learn Python'),
-			('Dansk Søgning', '/dansk', 'da', 'Søg efter noget');
-	`)
-	if err != nil {
-		t.Fatal(err)
+	for _, r := range rows {
+		if _, err := pool.Exec(ctx,
+			`INSERT INTO pages (title, url, language, content) VALUES ($1, $2, $3, $4)`,
+			r.title, r.url, r.language, r.content,
+		); err != nil {
+			t.Fatal(err)
+		}
 	}
-	return conn
 }
 
 func TestSearchPages_MatchesTitle(t *testing.T) {
-	conn := setupTestDB(t)
-	defer func() {
-		if err := conn.Close(); err != nil {
-			t.Fatalf("close db: %v", err)
-		}
-	}()
+	ctx := context.Background()
+	pool := newTestPool(t)
+	seedPages(t, pool)
 
-	results, err := SearchPages(conn, "Go", nil)
+	results, err := SearchPages(ctx, pool, "Go", nil)
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -53,14 +45,11 @@ func TestSearchPages_MatchesTitle(t *testing.T) {
 }
 
 func TestSearchPages_NoMatch(t *testing.T) {
-	conn := setupTestDB(t)
-	defer func() {
-		if err := conn.Close(); err != nil {
-			t.Fatalf("close db: %v", err)
-		}
-	}()
+	ctx := context.Background()
+	pool := newTestPool(t)
+	seedPages(t, pool)
 
-	results, err := SearchPages(conn, "Rust", nil)
+	results, err := SearchPages(ctx, pool, "Rust", nil)
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -70,14 +59,11 @@ func TestSearchPages_NoMatch(t *testing.T) {
 }
 
 func TestSearchPages_EmptyQuery(t *testing.T) {
-	conn := setupTestDB(t)
-	defer func() {
-		if err := conn.Close(); err != nil {
-			t.Fatalf("close db: %v", err)
-		}
-	}()
+	ctx := context.Background()
+	pool := newTestPool(t)
+	seedPages(t, pool)
 
-	results, err := SearchPages(conn, "", nil)
+	results, err := SearchPages(ctx, pool, "", nil)
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -87,15 +73,12 @@ func TestSearchPages_EmptyQuery(t *testing.T) {
 }
 
 func TestSearchPages_FiltersByLanguage(t *testing.T) {
-	conn := setupTestDB(t)
-	defer func() {
-		if err := conn.Close(); err != nil {
-			t.Fatalf("close db: %v", err)
-		}
-	}()
+	ctx := context.Background()
+	pool := newTestPool(t)
+	seedPages(t, pool)
 
 	da := "da"
-	results, err := SearchPages(conn, "Søgning", &da)
+	results, err := SearchPages(ctx, pool, "Søgning", &da)
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -108,14 +91,11 @@ func TestSearchPages_FiltersByLanguage(t *testing.T) {
 }
 
 func TestSearchPages_DefaultsToEnglish(t *testing.T) {
-	conn := setupTestDB(t)
-	defer func() {
-		if err := conn.Close(); err != nil {
-			t.Fatalf("close db: %v", err)
-		}
-	}()
+	ctx := context.Background()
+	pool := newTestPool(t)
+	seedPages(t, pool)
 
-	results, err := SearchPages(conn, "Programming", nil)
+	results, err := SearchPages(ctx, pool, "Programming", nil)
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -130,14 +110,11 @@ func TestSearchPages_DefaultsToEnglish(t *testing.T) {
 }
 
 func TestSearchPages_PartialMatch(t *testing.T) {
-	conn := setupTestDB(t)
-	defer func() {
-		if err := conn.Close(); err != nil {
-			t.Fatalf("close db: %v", err)
-		}
-	}()
+	ctx := context.Background()
+	pool := newTestPool(t)
+	seedPages(t, pool)
 
-	results, err := SearchPages(conn, "Prog", nil)
+	results, err := SearchPages(ctx, pool, "Prog", nil)
 	if err != nil {
 		t.Fatal(err)
 	}

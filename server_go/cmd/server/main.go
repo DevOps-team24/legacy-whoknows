@@ -1,14 +1,17 @@
 package main
 
 import (
+	"context"
+	"database/sql"
 	"log"
 	"net/http"
 	"os"
-	"path/filepath"
 	"strings"
 	"time"
 
 	"github.com/gorilla/sessions"
+	_ "github.com/jackc/pgx/v5/stdlib"
+	"github.com/pressly/goose/v3"
 
 	_ "whoknows_variations/server_go/docs"
 	"whoknows_variations/server_go/internal/db"
@@ -21,22 +24,22 @@ import (
 // @host huw.dk
 // @BasePath /
 func main() {
-	workingDir, _ := os.Getwd()
-	dbPath := os.Getenv("WHOKNOWS_DB_PATH")
-	if dbPath == "" {
-		absPath, _ := filepath.Abs(filepath.Join(workingDir, "..", "whoknows.db"))
-		dbPath = absPath
+	ctx := context.Background()
+
+	dsn := os.Getenv("DATABASE_URL")
+	if dsn == "" {
+		log.Fatal("DATABASE_URL is required")
 	}
 
-	conn, err := db.Open(dbPath)
+	if err := runMigrations(dsn); err != nil {
+		log.Fatalf("migrations failed: %v", err)
+	}
+
+	pool, err := db.Open(ctx, dsn)
 	if err != nil {
 		log.Fatal(err)
 	}
-	defer func() {
-		if err := conn.Close(); err != nil {
-			log.Printf("close db connection failed: %v", err)
-		}
-	}()
+	defer pool.Close()
 
 	secretKey := os.Getenv("WHOKNOWS_SECRET_KEY")
 	if secretKey == "" {
@@ -44,7 +47,7 @@ func main() {
 	}
 	store := sessions.NewCookieStore([]byte(secretKey))
 
-	s := &httpapi.Server{DB: conn, Sessions: store}
+	s := &httpapi.Server{DB: pool, Sessions: store}
 	router := httpapi.NewRouter(s)
 
 	port := os.Getenv("WHOKNOWS_PORT")
@@ -55,7 +58,6 @@ func main() {
 	if addr == "" {
 		addr = "0.0.0.0"
 	}
-	log.Printf("Connecting to DB at: %s", sanitizeLogValue(dbPath))                  // #nosec G706 -- Value is newline-sanitized before logging; source is deployment configuration.
 	log.Printf("listening on %s:%s", sanitizeLogValue(addr), sanitizeLogValue(port)) // #nosec G706 -- Values are newline-sanitized before logging; sources are deployment configuration.
 
 	srv := &http.Server{
@@ -68,6 +70,29 @@ func main() {
 	}
 
 	log.Fatal(srv.ListenAndServe())
+}
+
+func runMigrations(dsn string) error {
+	sqlDB, err := sql.Open("pgx", dsn)
+	if err != nil {
+		return err
+	}
+	defer func() {
+		if err := sqlDB.Close(); err != nil {
+			log.Printf("close migration connection failed: %v", err)
+		}
+	}()
+
+	if err := goose.SetDialect("postgres"); err != nil {
+		return err
+	}
+
+	migrationsDir := os.Getenv("WHOKNOWS_MIGRATIONS_DIR")
+	if migrationsDir == "" {
+		migrationsDir = "./migrations"
+	}
+
+	return goose.Up(sqlDB, migrationsDir)
 }
 
 func sanitizeLogValue(value string) string {
