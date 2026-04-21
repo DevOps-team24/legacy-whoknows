@@ -28,7 +28,8 @@ func LogSearch(query string, language *string, resultCount int) error {
 
 	dir := filepath.Dir(path)
 	if dir != "" && dir != "." {
-		if err := os.MkdirAll(dir, 0o755); err != nil {
+		// #nosec G301,G703 -- Log destination comes from deployment config and must be allowed outside the repo.
+		if err := os.MkdirAll(dir, 0o750); err != nil {
 			return err
 		}
 	}
@@ -45,7 +46,8 @@ func LogSearch(query string, language *string, resultCount int) error {
 	mu.Lock()
 	defer mu.Unlock()
 
-	f, err := os.OpenFile(path, os.O_APPEND|os.O_CREATE|os.O_WRONLY, 0o644)
+	// #nosec G302,G304,G703 -- Log destination comes from deployment config and is intentionally variable.
+	f, err := os.OpenFile(path, os.O_APPEND|os.O_CREATE|os.O_WRONLY, 0o600)
 	if err != nil {
 		return err
 	}
