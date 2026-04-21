@@ -1,18 +1,23 @@
 package httpapi
 
 import (
-	"database/sql"
 	"net/http"
+	"time"
 
 	"github.com/go-chi/chi/v5"
+	"github.com/go-chi/chi/v5/middleware"
 	"github.com/gorilla/sessions"
+	"github.com/jackc/pgx/v5/pgxpool"
+	"github.com/prometheus/client_golang/prometheus/promhttp"
 	httpSwagger "github.com/swaggo/http-swagger"
+
+	"whoknows_variations/server_go/internal/metrics"
 )
 
 const SessionName = "session"
 
 type Server struct {
-	DB       *sql.DB
+	DB       *pgxpool.Pool
 	Sessions *sessions.CookieStore
 }
 
@@ -20,8 +25,10 @@ func NewRouter(s *Server) http.Handler {
 	r := chi.NewRouter()
 
 	r.Use(s.UserFromSession)
+	r.Use(observeHTTPMetrics)
 
 	r.Handle("/static/*", http.StripPrefix("/static/", http.FileServer(http.Dir("./static"))))
+	r.Handle("/metrics", promhttp.Handler())
 
 	// HTML routes
 	r.Get("/", s.ServeRootPage)
@@ -39,4 +46,23 @@ func NewRouter(s *Server) http.Handler {
 	r.Get("/swagger/*", httpSwagger.WrapHandler)
 
 	return r
+}
+
+func observeHTTPMetrics(next http.Handler) http.Handler {
+	return http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		started := time.Now()
+		ww := middleware.NewWrapResponseWriter(w, r.ProtoMajor)
+
+		next.ServeHTTP(ww, r)
+
+		route := chi.RouteContext(r.Context()).RoutePattern()
+		if route == "" {
+			route = "unknown"
+		}
+		status := ww.Status()
+		if status == 0 {
+			status = http.StatusOK
+		}
+		metrics.ObserveHTTPRequest(r.Method, route, status, started)
+	})
 }
