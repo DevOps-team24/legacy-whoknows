@@ -30,7 +30,11 @@ jobs:
 
       - name: Blue/green deploy
         run: |
-          ssh -i ~/.ssh/ssh_key "$SSH_USER@$SSH_HOST" << 'DEPLOY'
+          ssh -i ~/.ssh/ssh_key "$SSH_USER@$SSH_HOST" \
+            "POSTGRES_USER='${{ secrets.POSTGRES_USER }}' \
+             POSTGRES_PASSWORD='${{ secrets.POSTGRES_PASSWORD }}' \
+             POSTGRES_DB='${{ secrets.POSTGRES_DB }}' \
+             bash -s" << 'DEPLOY'
             set -e
             cd /opt/whoknows
 
