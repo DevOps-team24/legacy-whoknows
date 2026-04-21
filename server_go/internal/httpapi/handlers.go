@@ -11,9 +11,12 @@ import (
 	"path/filepath"
 	"strings"
 	"sync"
+	"time"
 
 	"whoknows_variations/server_go/internal/auth"
 	"whoknows_variations/server_go/internal/db"
+	"whoknows_variations/server_go/internal/metrics"
+	"whoknows_variations/server_go/internal/searchlog"
 )
 
 type contextKey string
@@ -268,10 +271,15 @@ func (s *Server) ServeRootPage(w http.ResponseWriter, r *http.Request) {
 	var results []map[string]any
 	if q != "" {
 		var err error
+		started := time.Now()
 		results, err = db.SearchPages(r.Context(), s.DB, q, lang)
 		if err != nil {
 			http.Error(w, "internal error", http.StatusInternalServerError)
 			return
+		}
+		metrics.ObserveSearch(time.Since(started), len(results))
+		if err := searchlog.LogSearch(q, lang, len(results)); err != nil {
+			log.Printf("search log write failed: %v", err)
 		}
 	}
 
@@ -345,11 +353,16 @@ func (s *Server) Search(w http.ResponseWriter, r *http.Request) {
 		lang = &langParam
 	}
 
+	started := time.Now()
 	results, err := db.SearchPages(r.Context(), s.DB, q, lang)
 	if err != nil {
 		log.Printf("search query failed: %v", err)
 		writeJSON(w, http.StatusOK, SearchResponse{Data: []map[string]any{}})
 		return
+	}
+	metrics.ObserveSearch(time.Since(started), len(results))
+	if err := searchlog.LogSearch(q, lang, len(results)); err != nil {
+		log.Printf("search log write failed: %v", err)
 	}
 
 	writeJSON(w, http.StatusOK, SearchResponse{Data: results})
