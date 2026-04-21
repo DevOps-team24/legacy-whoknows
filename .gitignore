@@ -178,3 +178,6 @@ server_go/e2e/test-results/
 *.swp
 *:Zone.Identifier
 
+# Cutover env (laptop-side secrets for the one-time Postgres migration)
+server_go/scripts/cutover.env
+

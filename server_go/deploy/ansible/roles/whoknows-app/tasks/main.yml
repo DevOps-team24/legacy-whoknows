@@ -36,6 +36,16 @@
     mode: "0644"
     force: false
 
+- name: Stop and remove legacy whoknows container (pre-Postgres)
+  shell: |
+    if docker ps -a --format '{{ "{{" }}.Names{{ "}}" }}' | grep -qx whoknows; then
+      docker stop whoknows && docker rm whoknows
+    fi
+  become: false
+  args:
+    executable: /bin/bash
+  changed_when: false
+
 - name: Login til GHCR
   shell: echo "{{ lookup('env', 'CR_PAT') }}" | docker login ghcr.io -u devops-team36 --password-stdin
   become: false
@@ -60,6 +70,7 @@
   become: false
   args:
     executable: /bin/bash
+  tags: app
 
 - name: Vent på at appen svarer
   wait_for:
@@ -67,3 +78,4 @@
     host: 127.0.0.1
     delay: 5
     timeout: 90
+  tags: app
